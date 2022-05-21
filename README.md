@@ -70,10 +70,11 @@ This repository contains tools for:
 
 ## Installation
 1. Install [AMBER](https://github.com/CAMI-challenge/AMBER), [CheckM](https://github.com/Ecogenomics/CheckM) in separate environments
-2. Install desired tool to separated environment (GraphMB - [My modification](https://github.com/Abusagit/GraphMB), DMoN - [My modification](https://github.com/Abusagit/DMoN_for_HiC))
+2. Install desired tool to separated environment ([GraphMB - my modification](https://github.com/Abusagit/GraphMB), [DMoN - my modification](https://github.com/Abusagit/DMoN_for_HiC), [VAMB - my modification (minimal)](https://github.com/Abusagit/vamb))
 3. Install python packages:
 ```{bash}
 pip install -U numpy scipy pandas sklearn tqdm plotly kaleido
+```
 4. Clone repository and add it to PATH:
 ```{bash}
 git clone https://github.com/Abusagit/GNN_plus_HiC.git && 
@@ -96,8 +97,9 @@ graphmb --assembly graphmb_input/ [--other-paraneters-for-graphmb]
 
 ```{bash}
 py vamb2amber.py -i amber_result.tsv -g golden_standard_with_amber_format.tsv -o outdir/vamb_for_amber.tsv
-
 ```
+
+
 5. In the case of having labels you can directly compare binning results by AMBER - it provides comprehensive visualization plots. However, this is not the case for CheckM multiple study - here you can use `compare_checkm_results.py` and compare joint distribution of completeness and purity metrics among HQ genomes in m binning results (any number starting from 1):
 
 ```{bash}
