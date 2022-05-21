@@ -1,4 +1,4 @@
-__doc__ = """"""
+__doc__ = """Processing contact map and something for DMoN if needed"""
 
 import numpy as np
 import pandas as pd
@@ -10,7 +10,6 @@ from tqdm import tqdm
 from scipy.sparse import base
 from collections import defaultdict
 from sklearn.preprocessing import LabelEncoder
-from pandas_profiling import ProfileReport
 import subprocess
 
 import logging
@@ -28,7 +27,7 @@ class ContactMap:
         self.node_1 = node_1_column
         self.node_2 = node_2_column
 
-        self.feature_columns = feature_columns
+        self.feature_columns = feature_columns or []
         self.score_column = score_column
         self.scaling_func = scaling_method
 
@@ -60,7 +59,7 @@ class ContactMap:
 
         logger.info(f"Fitting complete! Found {self.nuinque_hic_contigs} contigs with Hi-C links")
 
-    def get_sparse_adgacency_feature_matrices(self, threshold=1):
+    def get_sparse_adjacency_feature_matrices(self, threshold=0):
         """
         :param threshold: value SpadesScore must be greater or equal to for
         :return: sparse adjacency and sparse feature matrux for DMoN
@@ -68,14 +67,24 @@ class ContactMap:
 
         h = len(set(self.data[self.node_1].unique()) | set(self.data[self.node_2].unique()))
         shape = (h, h)
-        sparse_adjacency = scipy.sparse.lil_matrix(np.zeros(shape))  # !!!!!!!!!!!!!
+        sparse_adjacency = sparse.lil_matrix(np.zeros(shape))  # !!!!!!!!!!!!!
 
-        sparse_feature_matrix = scipy.sparse.lil_matrix(
-            np.zeros((self.unique_features_amount, len(self.feature_columns) // 2)))
+        sparse_feature_matrix = sparse.lil_matrix(
+            np.zeros((self.nuinque_hic_contigs, max(len(self.feature_columns) // 2, 1))))
 
-        for _, row in tqdm(self.data.iterrows()):
+        self.data[self.node_1] = self.encoder.transform(self.data[self.node_1].values)
+        self.data[self.node_2] = self.encoder.transform(self.data[self.node_2].values)
+
+        visited_pairs = set()
+        for _, row in tqdm(self.data.iterrows(), total=self.data.shape[0]):
+
             node_1_id = row[self.node_1]
             node_2_id = row[self.node_2]
+
+            if visited_pairs & {(node_1_id, node_2_id), (node_2_id, node_1_id)}:
+                continue
+
+            visited_pairs |= {(node_1_id, node_2_id), (node_2_id, node_1_id)}
 
             sparse_adjacency[node_1_id, node_2_id] = sparse_adjacency[node_2_id, node_1_id] = int(
                 row[self.score_column] >= threshold)
@@ -86,7 +95,7 @@ class ContactMap:
             for feature_index, feature in enumerate(self.feature_columns[1::2]):  # Second node
                 sparse_feature_matrix[node_2_id, feature_index] = row[feature]
 
-        sparse_adjacency = scipy.sparse.csr_matrix(sparse_adjacency)
-        sparse_feature_matrix = scipy.sparse.csr_matrix(sparse_feature_matrix)
+        sparse_adjacency = sparse.csr_matrix(sparse_adjacency)
+        sparse_feature_matrix = sparse.csr_matrix(sparse_feature_matrix)
 
         return sparse_adjacency, sparse_feature_matrix

@@ -1,4 +1,4 @@
-#!/usr/bin/python3.8
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 

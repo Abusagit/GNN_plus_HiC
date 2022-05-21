@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 __doc__ = """Module for handling initial data formats and transforming them to requested by GraphMB tool:
  - contact map transformation to contig contact graph
  - abundance estimation from contig names (if available)
@@ -39,8 +42,18 @@ def initialize_logger():
     return root
 
 
-def main():
-    pass
+def check_header(file):
+    with open(file) as labels_file:
+        line_1, line_2, line_3 = (labels_file.readline().strip() for _ in range(3))
+        third_line = set(line_3.split("\t"))
+        if any((line_1.split(":")[0] != "@Version",
+                line_2.split(":")[0] != "@SampleID",
+                not all(("@@SEQUENCEID" in third_line,
+                         "BINID" in third_line,
+                         "_LENGTH" in third_line))
+                )):
+            return False
+        return True
 
 
 if __name__ == '__main__':
@@ -87,8 +100,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if not any((args.dmon, args.graphmb)):
-        raise Exception
     # Initializing logger
 
     root = initialize_logger()
@@ -117,7 +128,13 @@ if __name__ == '__main__':
         scaling_method=args.scaling,
     )
 
-    if args.labels:
+    if args.labels and not check_header(args.labels):
+        root.info("Labels are incorrect for AMBER, loading from headers file...")
+        if not check_header(args.header):
+            msg = "Provided header file doesn't contain valid header for AMBER!"
+            root.critical(msg)
+            raise AssertionError(msg)
+
         labels_AMBER_dataset = io_prep_tools.AmberDataPreprocessor(
             data=args.labels,
             header_file=args.header,
@@ -127,6 +144,8 @@ if __name__ == '__main__':
         root.info(f"Saving labels with correct AMBER format in {output_path}")
         labels_AMBER_dataset.create_output_format(output_path)
         root.info("Done!")
+    else:
+        root.info("Provided labels are correctly organised for AMBER work, well done!")
 
     root.info("Observing contigs compound")
     scaffolds_full = []
@@ -149,7 +168,6 @@ if __name__ == '__main__':
         )
 
         if args.draw and args.fasta_assembly:
-
             hic_scaffolds = contact_map.contigs_with_hic
             lengths_of_not_hic_scaffolds = np.array(
                 [len(contig2sequence[scaffold]) for scaffold in scaffolds_full if scaffold not in hic_scaffolds])
@@ -165,4 +183,12 @@ if __name__ == '__main__':
                                     )
 
     if args.dmon:
-        pass
+        root.info("Creating adjacency & feature matrices for DMoN")
+        sparse_adj, sparse_features = contact_map.get_sparse_adjacency_feature_matrices()
+
+        root.info(f"Saving contact graph to {os.path.join(args.outdir, 'contact_map')}.npz")
+        io_prep_tools.create_npz(out_file_name=os.path.join(args.outdir, "contact_map"),
+                                 features_csr=sparse_features,
+                                 adj_csr=sparse_adj)
+
+    root.info(f"DONE! All results are saved in {args.outdir}")

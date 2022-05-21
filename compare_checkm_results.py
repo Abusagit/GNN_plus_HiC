@@ -1,4 +1,7 @@
-__doc__ = """"""
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+__doc__ = """Informative comparative plots with binning metrics from several CheckM"""
 
 import plotly.graph_objects as go
 import ast

@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+__doc__ = """Various functions for transforming input and output of programs"""
+
+
 import logging
 from tqdm import tqdm
 import pandas as pd
@@ -15,12 +21,12 @@ logger = logging.getLogger(__name__)
 class AmberDataPreprocessor:
     def __init__(self, data, header_file):
         self.header = self.store_header(header_file)
-        self.data = data
+        self.data = pd.read_csv(data, sep="\t", index_col=0, header=0)
 
     @staticmethod
     def store_header(file):
         with open(file) as f_read:
-            return ''.join(f_read.readline() for _ in range(2))
+            return ''.join(f_read.readline() for _ in range(3))
 
     def create_output_format(self, output_name):
         self.data.to_csv(f"{output_name}", sep="\t", index=True)
@@ -45,7 +51,7 @@ def create_npz(out_file_name, features_csr, adj_csr, encoder=None, labels=None, 
            "label_indices": label_indices}
 
     np.savez(out_file_name, **npz)
-    print(f"File saved with name '{out_file_name}.npz'")
+    logger.info(f"Features file saved with name '{out_file_name}.npz'")
 
 
 def transform_tnf_to_features(tnf_data: pd.DataFrame, encoder):
@@ -234,7 +240,7 @@ def plot_contigs_lengths_distribution(all_lengths, lengths_of_hic_scaffolds, out
         less.append(list(count_t(t).iloc[1]))
 
     less = np.array(less)
-    less = pd.DataFrame(columns=["Whole contigs set", "Without HiC links"], data=less, index=thresholds)
+    less = pd.DataFrame(columns=["Overall set", "With HiC links"], data=less, index=thresholds)
     less.index.name = "Threshold"
 
     less_then_3_sigma_border = np.sum(all_lengths < np.median(all_lengths) + 3 * np.std(all_lengths))
@@ -243,5 +249,11 @@ def plot_contigs_lengths_distribution(all_lengths, lengths_of_hic_scaffolds, out
     fig.add_hline(y=less_then_3_sigma_border,
                   annotation_text=f"# contigs < median + 3 sigma of length ({less_then_3_sigma_border})",
                   annotation_position="top left")
-    fig.update_layout(yaxis={"title": "Amount"}, legend={"title": "Contigs"})
+    fig.update_layout(yaxis={"title": "Amount"}, legend={"title": "Contigs"}, font=dict(
+                          family="Proxima Nova",
+                          size=20,
+                          color="Dark Blue"
+                      ))
+    fig.update_traces(mode='markers', marker_line_width=1, marker_size=15
+                      )
     fig.write_image(os.path.join(outdir, "contig_lengths.jpg"))
