@@ -32,10 +32,22 @@ Bin was considered as HQ (high-quality metagenome-assembled genome) if it had >9
 ![image](https://user-images.githubusercontent.com/67659154/169665489-a3b73409-a11c-4bb3-b7b6-d28afdde7cf0.png)
 
 ## Conclusions:
+* DMoN strongly depends from input node features and doesn’t support edge features, therefore it is incompatible for contact map clustering
+* GraphMB showed better results on larger dataset where VAMB isn’t enough - it shows that some new information from contact graph was used to resolve bins
+* GraphMB relies on the effective VAMB workflow - this explains close results on small Zymo dataset and its close to VAMB result on such small datasets
+* GraphMB showed its competitive effectiveness in the problem of Hi-C contact map clustering  
+
 
 ## References:
+1. Nissen, J.N., Johansen, J., Allesøe, R.L. et al. Improved metagenome binning and assembly using deep variational autoencoders. Nat Biotechnol 39, 555–560 (2021). https://doi.org/10.1038/s41587-020-00777-4
+2. Metagenomic binning with assembly graph embeddings. Andre Lamurias, Mantas Sereika, Mads Albertsen, Katja Hose, Thomas Dyhre Nielsen. bioRxiv 2022.02.25.481923; doi: https://doi.org/10.1101/2022.02.25.481923
+3. Tsitsulin, Anton & Palowitch, John & Perozzi, Bryan & Müller, Emmanuel. (2020). Graph Clustering with Graph Neural Networks. 
+4. Fernando Meyer, Peter Hofmann, Peter Belmann, Ruben Garrido-Oter, Adrian Fritz, Alexander Sczyrba, Alice C McHardy, AMBER: Assessment of Metagenome BinnERs, GigaScience, Volume 7, Issue 6, June 2018, giy069, https://doi.org/10.1093/gigascience/giy069
+5. Parks DH, Imelfort M, Skennerton CT, Hugenholtz P, Tyson GW. CheckM: assessing the quality of microbial genomes recovered from isolates, single cells, and metagenomes. Genome Res. 2015 Jul;25(7):1043-55. doi: 10.1101/gr.186072.114. Epub 2015 May 14. PMID: 25977477; PMCID: PMC4484387.
+6. DeMaere, M., Darling, A. bin3C: exploiting Hi-C sequencing data to accurately resolve metagenome-assembled genomes. Genome Biol 20, 46 (2019). https://doi.org/10.1186/s13059-019-1643-1
 
-# Tool:
+
+# __Toolkit__
 This repository contains tools for:
 * Correctly preprocessing Hi-C contact map and related assembly graph with scaffolds to create compatible input formats for DMoN & GraphMB - `preprocess_files.py`
 * Correctly transforming ground truth labels (if any) to AMBER specific input format & post-clustering output modification for VAMB output - `vamb2amber.py`
@@ -58,7 +70,7 @@ This repository contains tools for:
 
 ## Installation
 1. Install [AMBER](https://github.com/CAMI-challenge/AMBER), [CheckM](https://github.com/Ecogenomics/CheckM) in separate environments
-2. Install desired tool to separated environment
+2. Install desired tool to separated environment (GraphMB - [My modification](https://github.com/Abusagit/GraphMB), DMoN - [My modification](https://github.com/Abusagit/DMoN_for_HiC))
 3. Install python packages:
 ```{bash}
 pip install -U numpy scipy pandas sklearn tqdm plotly kaleido
@@ -76,5 +88,18 @@ py preprocess.py --graphmb -c contact_map.tsv --scaling log -f scaffolds.fasta -
 2. Run GNN:
 
 ```{bash}
+graphmb --assembly graphmb_input/ [--other-paraneters-for-graphmb]
+```
 
+3. Run AMBER or CheckM
+4. You could also run VAMB - it produces clustering output incompatible for AMBER work but suitable for CheckM. You can use the followeing:
+
+```{bash}
+py vamb2amber.py -i amber_result.tsv -g golden_standard_with_amber_format.tsv -o outdir/vamb_for_amber.tsv
+
+```
+5. In the case of having labels you can directly compare binning results by AMBER - it provides comprehensive visualization plots. However, this is not the case for CheckM multiple study - here you can use `compare_checkm_results.py` and compare joint distribution of completeness and purity metrics among HQ genomes in m binning results (any number starting from 1):
+
+```{bash}
+py compare_checkm_results.py -i [checkm_input_1, ..., checkm_input_m] --labels [label_1, ..., label_m] --min-completeness 0.95 --min-purity 0.95
 ```
