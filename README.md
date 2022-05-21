@@ -83,7 +83,7 @@ git clone https://github.com/Abusagit/GNN_plus_HiC.git &&
 ## Workflow
 1. Preprocess data for given GNN (_e.g. GraphMB: transform `contact_map.tsv, scaffolds.fasta`_):
 ```{bash}
-py preprocess.py --graphmb -c contact_map.tsv --scaling log -f scaffolds.fasta --mimic-jgi -o graphmb_input/
+py preprocess_files.py --graphmb -c contact_map.tsv --scaling log -f scaffolds.fasta --mimic-jgi -o graphmb_input/
 ```
 
 2. Run GNN:
