@@ -70,7 +70,7 @@ This repository contains tools for:
 
 ## Installation
 1. Install [AMBER](https://github.com/CAMI-challenge/AMBER), [CheckM](https://github.com/Ecogenomics/CheckM) into separate environments
-2. Install desired tool into the separated environment (crucial for GraphMB and AMBER) ([GraphMB - my modification](https://github.com/Abusagit/GraphMB), [DMoN - my modification](https://github.com/Abusagit/DMoN_for_HiC), [VAMB - my modification (minimal)](https://github.com/Abusagit/vamb))
+2. Install desired tool into a separate environment (crucial for GraphMB and AMBER) ([GraphMB - my modification](https://github.com/Abusagit/GraphMB), [DMoN - my modification](https://github.com/Abusagit/DMoN_for_HiC), [VAMB - my modification (minimal modified tool)](https://github.com/Abusagit/vamb))
 3. Install python packages:
 ```{bash}
 pip install -U numpy scipy pandas sklearn tqdm plotly kaleido
