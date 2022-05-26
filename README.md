@@ -75,9 +75,9 @@ This repository contains tools for:
 ```{bash}
 pip install -U numpy scipy pandas sklearn tqdm plotly kaleido
 ```
-4. Clone repository and add it to PATH:
+4. Clone repository and add it to PATH (e.g. for bash):
 ```{bash}
-git clone https://github.com/Abusagit/GNN_plus_HiC.git && 
+git clone https://github.com/Abusagit/GNN_plus_HiC.git && cd GNN_plus_HiC && echo 'export PATH="your-dir:$PATH"' >> ~/.bashrc && source ~/.bashrc
 ```
 
 ## Workflow
