@@ -100,8 +100,8 @@ py vamb2amber.py -i amber_result.tsv -g golden_standard_with_amber_format.tsv -o
 ```
 
 
-5. In the case of having labels you can directly compare binning results by AMBER - it provides comprehensive visualization plots. However, this is not the case for CheckM multiple study - here you can use `compare_checkm_results.py` and compare joint distribution of completeness and purity metrics among HQ genomes in m binning results (any number starting from 1):
+5. In the case of having labels you can directly compare binning results by AMBER - it provides comprehensive visualization plots. However, this is not the case for CheckM multiple study - here you can use `compare_checkm_results.py` and compare joint distribution of completeness and purity metrics among HQ genomes in `m` binning results (any number starting from 1):
 
 ```{bash}
-py compare_checkm_results.py -i [checkm_input_1, ..., checkm_input_m] --labels [label_1, ..., label_m] --min-completeness 0.95 --min-purity 0.95
+py compare_checkm_results.py -i [checkm_input_1 ... checkm_input_m] --labels [label_1 ... label_m] --min-completeness 0.95 --min-purity 0.95
 ```
