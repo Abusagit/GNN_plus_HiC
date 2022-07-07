@@ -102,10 +102,11 @@ if __name__ == '__main__':
 
     # Initializing logger
 
-    root = initialize_logger()
+
 
     # Initiate output writing:
-
+    
+    warning = ""
     if os.path.isdir(args.outdir) and not args.force:
         raise FileExistsError(
             f"Directory {args.outdir} already exists! Specify another one or use '--force' to overwrite")
@@ -113,10 +114,12 @@ if __name__ == '__main__':
     elif os.path.isdir(args.outdir) and args.force:
         shutil.rmtree(args.outdir, ignore_errors=True)
         # Inform user about directory overwriting:
-        root.warning(f"Force overwriting directory {args.outdir}")
+        warning = f"Force overwriting directory {args.outdir}"
 
     os.mkdir(args.outdir)
-
+    root = initialize_logger()
+    if warning:
+        root.warning(warning)
     root.info(f"Reading contact map from {args.contact_map}")
 
     contact_map = contact_map_processing.ContactMap(

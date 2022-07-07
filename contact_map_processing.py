@@ -21,7 +21,10 @@ class ContactMap:
     DELIMITER = {"tsv": "\t", "csv": ","}
     SCALING_FUNC = {"log": np.log, "sqrt": np.sqrt}
 
-    def __init__(self, path, feature_columns, node_1_column, node_2_column, score_column, scaling_method):
+    def __init__(self, path, feature_columns=None, node_1_column="FirstName",
+                 node_2_column="SecondName",
+                 score_column="SpadesScore",
+                 scaling_method="log"):
         self.path = path
 
         self.node_1 = node_1_column
