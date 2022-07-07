@@ -69,21 +69,21 @@ This repository contains tools for:
 * Disk space - depends on data, + 2 Gb for CheckM database
 
 ## Installation
-1. Install [AMBER](https://github.com/CAMI-challenge/AMBER), [CheckM](https://github.com/Ecogenomics/CheckM) in separate environments
-2. Install desired tool to separated environment ([GraphMB - my modification](https://github.com/Abusagit/GraphMB), [DMoN - my modification](https://github.com/Abusagit/DMoN_for_HiC), [VAMB - my modification (minimal)](https://github.com/Abusagit/vamb))
+1. Install [AMBER](https://github.com/CAMI-challenge/AMBER), [CheckM](https://github.com/Ecogenomics/CheckM) into separate environments
+2. Install desired tool into a separate environment (crucial for GraphMB and AMBER) ([GraphMB - my modification](https://github.com/Abusagit/GraphMB), [DMoN - my modification](https://github.com/Abusagit/DMoN_for_HiC), [VAMB - my modification (minimal modified tool)](https://github.com/Abusagit/vamb))
 3. Install python packages:
 ```{bash}
 pip install -U numpy scipy pandas sklearn tqdm plotly kaleido
 ```
-4. Clone repository and add it to PATH:
+4. Clone repository and add it to PATH (e.g. for bash):
 ```{bash}
-git clone https://github.com/Abusagit/GNN_plus_HiC.git && 
+git clone https://github.com/Abusagit/GNN_plus_HiC.git && cd GNN_plus_HiC && echo 'export PATH="your-dir:$PATH"' >> ~/.bashrc && source ~/.bashrc
 ```
 
 ## Workflow
 1. Preprocess data for given GNN (_e.g. GraphMB: transform `contact_map.tsv, scaffolds.fasta`_):
 ```{bash}
-py preprocess.py --graphmb -c contact_map.tsv --scaling log -f scaffolds.fasta --mimic-jgi -o graphmb_input/
+py preprocess_files.py --graphmb -c contact_map.tsv --scaling log -f scaffolds.fasta --mimic-jgi -o graphmb_input/
 ```
 
 2. Run GNN:
@@ -100,8 +100,8 @@ py vamb2amber.py -i amber_result.tsv -g golden_standard_with_amber_format.tsv -o
 ```
 
 
-5. In the case of having labels you can directly compare binning results by AMBER - it provides comprehensive visualization plots. However, this is not the case for CheckM multiple study - here you can use `compare_checkm_results.py` and compare joint distribution of completeness and purity metrics among HQ genomes in m binning results (any number starting from 1):
+5. In the case of having labels you can directly compare binning results by AMBER - it provides comprehensive visualization plots. However, this is not the case for CheckM multiple study - here you can use `compare_checkm_results.py` and compare joint distribution of completeness and purity metrics among HQ genomes in `m` binning results (any number starting from 1):
 
 ```{bash}
-py compare_checkm_results.py -i [checkm_input_1, ..., checkm_input_m] --labels [label_1, ..., label_m] --min-completeness 0.95 --min-purity 0.95
+py compare_checkm_results.py -i [checkm_input_1 ... checkm_input_m] --labels [label_1 ... label_m] --min-completeness 0.95 --min-purity 0.95
 ```
