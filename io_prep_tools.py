@@ -3,7 +3,6 @@
 
 __doc__ = """Various functions for transforming input and output of programs"""
 
-
 import logging
 from tqdm import tqdm
 import pandas as pd
@@ -14,8 +13,55 @@ from functools import partial
 from collections import defaultdict
 import plotly.express as px
 import bisect
+import ast
+
 
 logger = logging.getLogger(__name__)
+
+
+class CheckMResult:
+    def __init__(self, path, delim="\t"):
+        self.path = path
+        self.data = self.read_checkm(path, delim)
+
+    @staticmethod
+    def read_checkm(path, delim):
+        bin_ids = []
+        columns = defaultdict(list)
+
+        numlines = sum(1 for _ in open(path, 'rb'))
+        with open(path) as f_read:
+
+            for line in tqdm(f_read, total=numlines):
+                bin_id, values = line.split(delim)
+
+                bin_ids.append(bin_id)
+
+                values_dict = ast.literal_eval(values)
+
+                for feature, value in values_dict.items():
+                    columns[feature].append(value)
+
+        dataframe = pd.DataFrame(index=bin_ids, data=columns)[
+            ["marker lineage", "Completeness", "Contamination", "GC", "Genome size",
+             "# scaffolds", "# contigs", "N50 (scaffolds)", "N50 (contigs)", "Mean scaffold length",
+             "Mean contig length"]]
+
+        dataframe.index.name = "binid"
+
+        dataframe[["Completeness", "Contamination"]] /= 100
+
+        dataframe["Purity"] = 1 / (1 + dataframe["Contamination"])
+
+        dataframe["F1"] = 2 * dataframe["Completeness"] * dataframe["Purity"] / (
+                dataframe["Completeness"] + dataframe["Purity"])
+
+        return dataframe
+
+    def get_HQ_bins(self, completeness_lower_bound=0.90, purity_lower_bound=0.90):
+
+        return self.data.query(
+            f"Completeness > {completeness_lower_bound} & Purity > {purity_lower_bound}")
 
 
 class AmberDataPreprocessor:
@@ -81,8 +127,10 @@ def get_dict_from_npz(filepath):
     return loader
 
 
-def mimic_jgi_get_depth_from_names(contigs_with_info_in_names, lengths=None, save_name="features.txt",
-                                   write_option=True):
+def mimic_jgi(contigs_with_info_in_names, initial_assembly_graph,
+              # contact_map,
+              lengths=None, save_name="features.txt",
+              write_option=True):
     """
     Only suitable for data with the specidic pattern
     """
@@ -93,7 +141,8 @@ def mimic_jgi_get_depth_from_names(contigs_with_info_in_names, lengths=None, sav
 
     class RegexpError(Exception):
         def __init__(self):
-            self.message = "Incorrect contig names as re couldn`t find length & coverage match"
+            self.message = "No information was found either in contig names or in assembly_graph. " \
+                           f"Perhaps you need to add 'dp:i:' tag to {initial_assembly_graph}"
             super().__init__(self.message)
 
     try:
@@ -102,7 +151,45 @@ def mimic_jgi_get_depth_from_names(contigs_with_info_in_names, lengths=None, sav
         else:
             _, coverages = regexp_vectorized(contigs_with_info_in_names)
     except IndexError:  # re.findall has empty list <==> incorrect contig names
-        raise RegexpError
+        logger.warning("Names of contigs don't provide lengths and depths, trying to fetch from contact map and gfa")
+        try:
+            logger.warning("Trying to compute coverage from edges")
+            edge_coverage_pattern = re.compile("^S\t(\S+).*dp:i:(\d+)")  # (contig_name, depth)
+            path_pattern = re.compile("^P\t(\S*)\t(\S+)")  # (contig, edges from path
+
+            edge2coverage = {}
+            contig2edges = defaultdict(list)
+
+            with open(initial_assembly_graph) as gfa:
+                for line in tqdm(gfa, desc="Reading GFA"):
+                    edge_cov_p = edge_coverage_pattern.findall(line)
+                    path_p = path_pattern.findall(line)
+                    if edge_cov_p:
+                        edge = edge_cov_p[0][0]
+                        edge_coverage = int(edge_cov_p[0][1])
+                        edge2coverage[edge] = edge_coverage
+                        # breakpoint()
+                    elif path_p:
+                        contig = path_p[0][0]
+                        path = list(map(lambda x: x[:-1], path_p[0][1].split(",")))
+                        contig2edges[contig].extend(path)
+                        # breakpoint()
+
+            # if not lengths:
+            #     lengths = [contact_map.contig2length[contig] for contig in contigs_with_info_in_names]
+
+            coverages = []
+            for index, contig in tqdm(enumerate(contigs_with_info_in_names), desc="Assgning depths to contigs"):
+                contig_summarized_depth = sum(map(lambda e: edge2coverage[e], contig2edges[contig]))
+                contig_length = lengths[index]
+
+                coverages.append(contig_summarized_depth)
+            breakpoint()
+            assert len(coverages) == len(lengths) == len(contigs_with_info_in_names)
+
+        except IndexError:
+            breakpoint()
+            raise RegexpError
 
     else:
         columns = ["contigName", "contigLen", "totalAvgDepth", "nodes.bam"]
@@ -122,8 +209,11 @@ def mimic_jgi_get_depth_from_names(contigs_with_info_in_names, lengths=None, sav
         return dataframe
 
 
-def create_gfa_file(hic_data, required_contigs, scaffolds_file, saving_dir="./", mimic=True,
-                    save_gfa_file="contact_graph.gfa",
+def create_gfa_file(hic_data, required_contigs, scaffolds_file,
+                    # contact_map,
+                    initial_assembly_graph,
+                    saving_dir="./", mimic=True,
+                    save_gfa_file="assembly_graph.gfa",
                     save_fasta_file="assembly.fasta"):
     """    """
 
@@ -144,7 +234,7 @@ def create_gfa_file(hic_data, required_contigs, scaffolds_file, saving_dir="./",
             header = scaffolds.readline().strip()[1:]
             #             headers.append(header)
 
-            for line in tqdm(scaffolds):
+            for line in tqdm(scaffolds, desc=f"Reading {scaffolds_file}"):
                 if line.startswith(">"):
                     contig2sequence[header] = ''.join(contig2sequence[header])
 
@@ -163,7 +253,8 @@ def create_gfa_file(hic_data, required_contigs, scaffolds_file, saving_dir="./",
                     save_gfa.write(S_STRING.format(*(header, contig2sequence[header])))
                     save_fasta.write(f">{header}\n{contig2sequence[header]}\n")
 
-        for _, row in tqdm(hic_data.data.iterrows(), total=hic_data.data.shape[0]):
+        for _, row in tqdm(hic_data.data.iterrows(), total=hic_data.data.shape[0],
+                           desc="Extracting Hi-C scores between contigs"):
             contig_1_2_score = row[[hic_data.node_1, hic_data.node_2, hic_data.score_column]]
 
             save_gfa.write(L_STRING.format(*contig_1_2_score))
@@ -172,10 +263,12 @@ def create_gfa_file(hic_data, required_contigs, scaffolds_file, saving_dir="./",
     logger.info(f"Assembly graph was saved to {save_gfa_file}")
 
     if mimic:
-        mimic_jgi_get_depth_from_names(contigs_with_info_in_names=required_contigs,
-                                       lengths=lengths,
-                                       save_name=os.path.join(saving_dir, "assembly_depth.tsv"),
-                                       )
+        mimic_jgi(contigs_with_info_in_names=required_contigs,
+                  # lengths=lengths,
+                  save_name=os.path.join(saving_dir, "assembly_depth.tsv"),
+                  initial_assembly_graph=initial_assembly_graph,
+                  # contact_map=contact_map
+                  )
     return contig2sequence
 
 
@@ -206,6 +299,23 @@ def abundance2jgi(abundances_file, save_dir, save_name="assembly_depth.txt"):
         abundance.insert(1, "totalAvgDepth", total_avg_depth)
         abundance.to_csv(save_file, sep="\t", index=True)
         logger.info(f"Abundances were transformed to jgi format and saved to {save_file}")
+
+
+def create_jgi_from_depth_file(depth_file, contigs_ordered, save_dir, save_name="assembly_depth.txt"):
+    save_file = os.path.join(save_dir, save_name)
+    depths = pd.read_csv(depth_file, delimiter="\t", index_col=0).iloc[:, :2]
+    depths = depths.loc[contigs_ordered]
+    depths.index.name = "contigName"
+    depths.columns = ["contigLen", "totalAvgDepth"]
+    depths["nodes.bam"] = depths["totalAvgDepth"]
+
+    try:
+        depths = depths.loc[contigs_ordered]
+        depths.to_csv(save_file, sep="\t", index=True)
+        logger.info(f"Depth file was read and jgi file was transformed with respect to it in {save_file}")
+
+    except IndexError:
+        breakpoint()
 
 
 def plot_contigs_lengths_distribution(all_lengths, lengths_of_hic_scaffolds, outdir):
@@ -250,10 +360,10 @@ def plot_contigs_lengths_distribution(all_lengths, lengths_of_hic_scaffolds, out
                   annotation_text=f"# contigs < median + 3 sigma of length ({less_then_3_sigma_border})",
                   annotation_position="top left")
     fig.update_layout(yaxis={"title": "Amount"}, legend={"title": "Contigs"}, font=dict(
-                          family="Proxima Nova",
-                          size=20,
-                          color="Dark Blue"
-                      ))
+        family="Proxima Nova",
+        size=20,
+        color="Dark Blue"
+    ))
     fig.update_traces(mode='markers', marker_line_width=1, marker_size=15
                       )
     fig.write_image(os.path.join(outdir, "contig_lengths.jpg"))

@@ -66,6 +66,11 @@ if __name__ == '__main__':
     parser.add_argument("-c", "--contact_map", type=str, default="contact_map.tsv", help="File with contact map")
     parser.add_argument("--score_column", type=str, default="SpadesScore",
                         help="Column with measure of Hi-C adjacency")
+
+    # initial assembly_graph
+
+    parser.add_argument("-g", "--gfa_graph", type=str, required=True, help="File with assembly graph if .gfa format")
+
     # parser.add_argument("-d", "--")
     parser.add_argument("--scaling", type=str, choices=["sqrt", "log"], default="log",
                         help="Method of scaling Hi-C adjacency score")
@@ -73,7 +78,8 @@ if __name__ == '__main__':
                         help="Column names from contact map containing contig names with Hi-C link")
     parser.add_argument("--feature_columns", type=str, nargs="+", required=False,
                         help="""Features from contact map for DMoN (will be ignored if you use GraphMB)
-                                Order must be: Feature_i_node_left, Feature_i_node_right, Feature_j_node_left, Feature_j_node_right etc.""")
+                                Order must be: Feature_i_node_left, Feature_i_node_right, Feature_j_node_left, 
+                                Feature_j_node_right etc.""")
 
     parser.add_argument("--graphmb", action="store_true", help="Process for GraphMB tools")
     parser.add_argument("--dmon", action="store_true", help="Process for DMoN tool")
@@ -84,6 +90,10 @@ if __name__ == '__main__':
                         help="File with assembled contigs/scaffolds")
     parser.add_argument("-a", "--abundances", type=str,
                         help="File with contig abundances -> transform for VAMB OR GraphMB")
+
+    parser.add_argument("--depths", type=str,
+                        help="File with depths of contigs")
+
     parser.add_argument("--mimic-jgi", "--mimic_jgi", action="store_true",
                         help="Estimate contigs coverage from contig names")
 
@@ -167,6 +177,8 @@ if __name__ == '__main__':
             required_contigs=scaffolds_full,
             scaffolds_file=args.fasta_assembly,
             saving_dir=args.outdir,
+            # contact_map=contact_map,
+            initial_assembly_graph=args.gfa_graph,
             mimic=args.mimic_jgi and not args.abundances,
         )
 
@@ -182,8 +194,12 @@ if __name__ == '__main__':
 
     if args.abundances:
         io_prep_tools.abundance2jgi(abundances_file=args.abundances,
-                                    save_dir=args.outdir
+                                    save_dir=args.outdir,
                                     )
+    elif args.depths:
+        io_prep_tools.create_jgi_from_depth_file(depth_file=args.depths,
+                                                 contigs_ordered=scaffolds_full,
+                                                 save_dir=args.outdir)
 
     if args.dmon:
         root.info("Creating adjacency & feature matrices for DMoN")

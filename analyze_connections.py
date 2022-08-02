@@ -11,30 +11,40 @@ import sys
 import pandas as pd
 import numpy as np
 import re
+from pathlib import Path
 
 package_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, os.path.join(package_dir, "working_dir"))
 
 import contact_map_processing
+from io_prep_tools import CheckMResult
 
-if __name__ == '__main__':
-    DEFAULT_OUTDIR = "./"
 
+def get_parser():
     parser = argparse.ArgumentParser(description="Draw heatmap of Hi-C connections between and within clusters")
 
     parser.add_argument("-b", "--binning_results", help="Path to binning results",
                         type=str)
     parser.add_argument("-g", "--ground_truth", type=str,
-                        help="Path to golden standard")
-    parser.add_argument("-c", "--contact_map", type=str,
+                        help="Path to golden standard or CHECKM`s lineage file")
+
+    parser.add_argument("-m", "--contact_map", type=str,
                         help="Path to contact map")
-    parser.add_argument("-a", "--amber_summary", "--amber-summary", type=str, help="AMBER summary file")
 
-    # parser.add_argument("-d", "--depths", type=str, help="Depths of contigs")
-    parser.add_argument("-o", "--outdir", default=DEFAULT_OUTDIR)
+    parser.add_argument("--tool", type=str, choices=["checkm", "amber"])
+    parser.add_argument("-r", "--report", type=str, help="AMBER or CHECKM summary file")
 
-    args = parser.parse_args()
+    parser.add_argument("-d", "--depths", type=str, help="Depths of contigs")
 
+    parser.add_argument("-o", "--outdir", default=os.getcwd())
+    parser.add_argument("-l", "--label")
+
+    parser.add_argument("--only_hq", "--only-hq", action="store_true")
+
+    return parser
+
+
+def get_logger():
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
     formatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
@@ -43,6 +53,16 @@ if __name__ == '__main__':
     console_handler.setLevel(logging.DEBUG)
     console_handler.setFormatter(formatter)
     root.addHandler(console_handler)
+
+    return root
+
+
+if __name__ == '__main__':
+
+    parser = get_parser()
+
+    args = parser.parse_args()
+    root = get_logger()
     #
     # root.info(f"Reading depths file {args.depths}")
     # depths_ = pd.read_csv(args.depths, sep="\t").query("contigLen >= 2000")
@@ -61,26 +81,14 @@ if __name__ == '__main__':
         hic_connections.add((c_2, c_1))
 
     root.info(f"Loading binning results from {args.binning_results}")
-    labels = pd.read_csv(args.binning_results, skiprows=2, sep="\t")
+    labels = pd.read_csv(args.binning_results, comment="@", sep="\t",
+                         index_col=0, header=None, dtype=str)  # contigname | clusterr | [etc.]
 
     root.info("Assigning each contig to cluster")
-    contig2bin = {}
-    for _, row in tqdm(labels.iterrows(), total=labels.shape[0]):
-        contig2bin[row["@@SEQUENCEID"]] = row["BINID"]
 
-    root.info(f"Assigning each contig to corresponding genome according to ground truth {args.ground_truth}")
+    contig2bin = dict(zip(labels.index, labels.iloc[:, 0]))
 
-    contig2genome = {}
-    with open(args.ground_truth) as f_read:
-        for line in f_read:
-            if line.startswith("@"):
-                continue
-            contig, genome, *_ = line.strip().split("\t")
-
-            contig2genome[contig] = genome
-
-    if args.amber_summary:
-        genome_lengths = {}
+    if args.tool == "amber":
         bin2genome = {}
         root.info(f"Loading AMBER summary from {args.amber_summary}")
         amber_summary = pd.read_csv(args.amber_summary,
@@ -91,11 +99,37 @@ if __name__ == '__main__':
             genome_lengths[row["genome_id"]] = row["tp_length"]
 
         amber_summary = amber_summary.query("Tool == 'GraphMB'").set_index("BINID")
-        amber_summary.index = amber_summary.index.astype(int)
+        amber_summary.index = amber_summary.index  # .astype(int)
         for binid, row in amber_summary.iterrows():
             bin2genome[binid] = row["genome_id"]
 
         root.debug(amber_summary)
+    else:  # CHECKM
+        checkm_result = CheckMResult(args.report)
+        if args.only_hq:
+            hq_bins = checkm_result.get_HQ_bins()
+            bin2genome = dict(zip(hq_bins.index, hq_bins["marker lineage"]))
+            bin2length = dict(zip(hq_bins.index, hq_bins["Genome size"]))
+        else:
+            bin2genome = dict(zip(checkm_result.data.index, checkm_result.data["marker lineage"]))
+            bin2length = dict(zip(checkm_result.data.index, checkm_result.data["Genome size"]))
+
+    root.info(f"Assigning each contig to corresponding genome according to ground truth {args.ground_truth}")
+
+    contig2genome = {}
+
+    if args.tool == "amber":
+        with open(args.ground_truth) as f_read:
+            for line in f_read:
+                if line.startswith("@"):
+                    continue
+                contig, genome, *_ = line.strip().split("\t")
+
+                contig2genome[contig] = genome
+    else:  # CHECKM
+        for contig, bin_ in contig2bin.items():
+            if bin_ in bin2genome:
+                contig2genome[contig] = bin2genome[bin_]
 
     root.info("Building data for heatmap")
 
@@ -105,6 +139,7 @@ if __name__ == '__main__':
     HiC_LINKS_BETWEEN_BINS = defaultdict(lambda: defaultdict(int))
     HIC_links_between_contigs = defaultdict(list)
     i = 0
+
     while unvisited_connections:
         c_1, c_2 = unvisited_connections.pop()
         unvisited_connections.discard((c_2, c_1))
@@ -120,7 +155,7 @@ if __name__ == '__main__':
         HIC_links_between_contigs[c_1].append(c_2)
         HIC_links_between_contigs[c_2].append(c_1)
 
-        i += 1 + cluster_1 != cluster_2
+        i += 1 + (cluster_1 != cluster_2)
         if i % 1000 == 0:
             root.info(f"Processed {i} pairs")
     #
@@ -176,31 +211,39 @@ if __name__ == '__main__':
     #
     # breakpoint()
 
-    all_binids = sorted(filter(lambda x: all((sum(HiC_LINKS_BETWEEN_BINS[x].values()) - HiC_LINKS_BETWEEN_BINS[x][x] > 10,
-                                              x in bin2genome)),
-                               HiC_LINKS_BETWEEN_BINS.keys()), key=lambda bin_: bin2genome[bin_])
+    all_binids = sorted(
+        filter(lambda x: all((sum(HiC_LINKS_BETWEEN_BINS[x].values()) - HiC_LINKS_BETWEEN_BINS[x][x] > 10,
+                              x in bin2genome and bin2genome[x] != "root")),
+               HiC_LINKS_BETWEEN_BINS.keys()), key=lambda bin_: bin2genome[bin_])
 
     root.info("Creating dataframe...")
     data_for_heatmap = np.array([
-        [HiC_LINKS_BETWEEN_BINS[binid].get(bin_id_internal, 0) for bin_id_internal in all_binids] for binid in reversed(all_binids)])
+        [np.log10(HiC_LINKS_BETWEEN_BINS[binid].get(bin_id_internal,0) + 1) / (1 + (bin2length[bin_id_internal] + bin2length[binid]) // 100_000) for bin_id_internal in all_binids]
+        for binid in reversed(all_binids)]).astype(np.float64)
 
+    # breakpoint()
     root.debug(f"{data_for_heatmap.shape=}")
 
     root.info("Drawing heatmap")
 
-    index = set(amber_summary.index)
+    # if args.tool == "amber":
+    #     index = set(amber_summary.index)
+    # else:
+    #     index = set(checkm_result.index)
     all_binids = tuple(
-        map(lambda x: f"{x} ({amber_summary.loc[x, 'genome_id'] if x in index else 'None'})", all_binids))
+        map(lambda x: f"{x} ({bin2genome.get(x)}) LEN {bin2length[x]}", all_binids))
 
-    fig = px.imshow(np.log10(data_for_heatmap + 1),
-                    labels=dict(x="BINID", y="BINID", color="Log10(Hi-C links)"),
-                    x=all_binids,
-                    y=all_binids[::-1],
-                    aspect="auto",
-                    color_continuous_scale="BuPu",
-                    height=1500,
-                    width=1500,
-                    )
+    fig = px.imshow(
+        # np.log10(data_for_heatmap + 1),
+        data_for_heatmap,
+        labels=dict(x="BINID", y="BINID", color="Normalized Log10(Hi-C links)"),
+        x=all_binids,
+        y=all_binids[::-1],
+        aspect="auto",
+        color_continuous_scale="BuPu",
+        height=1500,
+        width=1500,
+    )
 
     z_text = [
         [f"{data_for_heatmap[i, j]} Hi-C links" for j in range(data_for_heatmap.shape[1])] for i in range(
@@ -210,7 +253,9 @@ if __name__ == '__main__':
     # fig.update_traces(hovertemplate="Bins %{x} X %{y}<extra></extra>")
     # fig.update_xaxes(visible=False)
     # fig.update_yaxes(visible=False)
-    fig.write_image(os.path.join(args.outdir, "heatmap.png"))
-    fig.write_html(os.path.join(args.outdir, "heatmap.html"))
+
+    Path(args.outdir).mkdir(exist_ok=True, parents=True)
+    fig.write_image(os.path.join(args.outdir, f"{args.label}_heatmap.png"))
+    fig.write_html(os.path.join(args.outdir, f"{args.label}_heatmap.html"))
 
     root.info(f"Heatmap saved at {args.outdir}")

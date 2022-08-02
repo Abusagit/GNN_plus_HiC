@@ -30,6 +30,8 @@ class ContactMap:
         self.node_1 = node_1_column
         self.node_2 = node_2_column
 
+        # self.len1, self.len2 = ("FirstLength", "SecondLength")
+
         self.feature_columns = feature_columns or []
         self.score_column = score_column
         self.scaling_func = scaling_method
@@ -45,6 +47,14 @@ class ContactMap:
         logger.info(f"Scaling {self.score_column} by {self.scaling_func} scaling function")
 
         self.data[self.score_column] = self.data[self.score_column].apply(ContactMap.SCALING_FUNC[self.scaling_func])
+
+        # self.contig2length = {}
+        # for _, row in tqdm(self.data.iterrows(), total=self.data.shape[0], desc="Mapping lengths to contigs"):
+        #     contig_1, contig_2, length_1, length_2 = row[[self.node_1, self.node_2, self.len1, self.len2]]
+        #
+        #     for c, len_ in zip((contig_1, contig_2), (length_1, length_2)):
+        #         if c not in self.contig2length:
+        #             self.contig2length[c] = len_
 
         self.fit_encoder(node_1_column, node_2_column)
 
