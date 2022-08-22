@@ -1,6 +1,5 @@
 import argparse
 from collections import defaultdict
-from multiprocessing import current_process
 from tqdm import tqdm
 # import os
 from pathlib import Path

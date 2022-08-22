@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class ContactMap:
     DELIMITER = {"tsv": "\t", "csv": ","}
-    SCALING_FUNC = {"log": np.log, "sqrt": np.sqrt}
+    SCALING_FUNC = {"log": np.log, "sqrt": np.sqrt, None: lambda x: x}
 
     def __init__(self, path, feature_columns=None, node_1_column="FirstName",
                  node_2_column="SecondName",

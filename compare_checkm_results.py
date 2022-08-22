@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-__doc__ = """Informative comparative plots with binning metrics from several CheckM"""
+__doc__ = """Informative comparative plots with binning metrics from several CheckM files"""
 
 import plotly.graph_objects as go
-import ast
+from plotly.subplots import make_subplots
+# import plotly.express as px
+
 import pandas as pd
 import argparse
 import os
@@ -13,10 +15,52 @@ from tqdm import tqdm
 from io_prep_tools import CheckMResult
 from pathlib import Path
 
-PLOT_NAME = "summary_{}_mindepth_{}.png"
-HTML_NAME = "summary_{}_mindepth_{}.html"
-TSV_NAME = "summary_mindepth_{}.tsv"
-CSV_NAME = "summary_mindepth_{}.csv"
+OVERALL_PLOT_NAME = "summary_{}_mindepth_{}.png"
+OVERALL_HTML_NAME = "summary_{}_mindepth_{}.html"
+
+TSV_NAME = "summary_{}_mindepth_{}.tsv"
+CSV_NAME = "summary_{}_mindepth_{}.csv"
+
+SUMMARY_PLOT_NAME = "columns_summary.{}"  # format [png, html]
+
+FLOAT_FORMAT = "{:.2f} mbp".format
+
+
+def plot_columns_from_summary(summary_df, tool_name_col, outdir):
+    
+    summary_cols = tuple(filter(lambda x: x!= tool_name_col, summary_df.columns))
+
+    traces = []
+    titles = []
+    # TODO make it prettier
+
+    widths = [0.5 for _ in range(summary_df.shape[0])]
+    for column in tqdm(summary_cols, total=summary_df.shape[1] - 1, desc="Drawing plots for summary"):
+        title = column.replace('#', "Number")
+        # breakpoint()
+        trace = go.Bar(x=summary_df[tool_name_col], y=summary_df[column], width=widths, textposition='auto', 
+        texttemplate="%{y:.2f}" if summary_df[column].dtype != "int64" else "%{y}",
+        text=summary_df[column])
+        traces.append(trace)
+        titles.append(title)
+
+    fig = make_subplots(rows=len(summary_cols), cols=1, shared_xaxes=False, vertical_spacing=0.055, 
+    subplot_titles=titles)
+
+    for subplot_index, trace in enumerate(traces, 1):
+        fig.add_trace(trace, row=subplot_index, col=1)
+
+
+    fig.update_layout(height=300 * len(summary_cols), width= 150 * (summary_df.shape[0]),
+                  title_text="Tools different statistics",
+                    # font=dict(
+                    #       family="Proxima Nova",
+                    #       size=20,
+                    #       color="Dark Blue"
+                    #   ),
+                  showlegend=False)
+    fig.write_html(os.path.join(outdir, SUMMARY_PLOT_NAME.format("html")))
+    fig.write_image(os.path.join(outdir, SUMMARY_PLOT_NAME.format("png")))
 
 
 def plot_different_tools_results(tools_results_paths, tool_names, min_completeness, min_purity, outdir,
@@ -24,14 +68,14 @@ def plot_different_tools_results(tools_results_paths, tool_names, min_completene
                                  binnings,
                                  mindepth,
                                  ):
-    def get_contigs_summary(data, binning_file):
+    def get_contigs_summary(hq_data, binning_file):
         nonlocal contig_depths_lengths
 
         binning = pd.read_csv(binning_file, sep="\t", comment="@", index_col=0, header=None, dtype=str)
 
-        HQ_bins = set(data.index.values)
+        HQ_bins = set(hq_data.index.values)
 
-        overall_len = overall_binned_contigs = hq_total_len = hq_total_num = hq_length_binned_in_hq_bin = hq_binned_in_hq_bin_num = 0
+        # overall_len = overall_binned_contigs = hq_total_len = hq_total_num = hq_length_binned_in_hq_bin = hq_binned_in_hq_bin_num = 0
 
         requested_contigs = contig_depths_lengths.loc[binning.index, ["Length", "Depth"]].astype(int)
         binning["Length"], binning["Depth"] = requested_contigs["Length"], requested_contigs["Depth"]
@@ -60,7 +104,7 @@ def plot_different_tools_results(tools_results_paths, tool_names, min_completene
         overall_binned_contigs = binning.shape[0]
 
         query = binning.query(f"Depth >= {mindepth}")
-        hq_total_len = query["Length"].sum()
+        hq_total_len = hq_data["Genome size"].sum()
         hq_total_num = query.shape[0]
 
         filtered_index = list(filter(lambda c: binning.loc[c, 1] in HQ_bins, query.index.values))
@@ -69,7 +113,8 @@ def plot_different_tools_results(tools_results_paths, tool_names, min_completene
         hq_length_binned_in_hq_bin = query["Length"].sum()
 
         # breakpoint()
-        return (overall_len, hq_total_len, hq_length_binned_in_hq_bin,
+
+        return (len(HQ_bins), overall_len, hq_total_len, hq_length_binned_in_hq_bin,
                 overall_binned_contigs, hq_total_num, hq_binned_in_hq_bin_num)
 
     contig_depths_lengths = pd.read_csv(depths, index_col=0,
@@ -80,35 +125,37 @@ def plot_different_tools_results(tools_results_paths, tool_names, min_completene
 
     summary = []
 
-    for i, (result, tool_name, binning_result) in enumerate(zip(tools_results_paths, tool_names, binnings)):
+    for _, (result, tool_name, binning_result) in enumerate(zip(tools_results_paths, tool_names, binnings)):
         df = CheckMResult(path=result).get_HQ_bins(completeness_lower_bound=min_completeness,
                                                    purity_lower_bound=min_purity
                                                    )
 
-        summary.append([tool_name, df.shape[0],
-                        *get_contigs_summary(data=df, binning_file=binning_result)])  # name, # of HQ genomes
+        summary.append([tool_name, *get_contigs_summary(hq_data=df, binning_file=binning_result)])  # name, # of HQ genomes
         # breakpoint()
 
         fig.add_trace(go.Scatter(y=df["Completeness"], x=df["Purity"],
                                  mode="markers",
                                  name=f"{tool_name}\n({df.shape[0]})",
                                  marker_size=df["Genome size"] / 100_000,
-                                 opacity=0.99,
+                                #  opacity=0.99,
                                  hovertext=df["Genome size"]
 
                                  ))
 
     summary = pd.DataFrame(data=summary,
                            columns=["Tool",
-                                    "Total bins",
-                                    "Overall binned length",
-                                    "Length of binned to HQ bins",
-                                    "Length of high-covered binned to HQ bins",
-                                    "Overall # binned contigs",
-                                    "Total # high-covered binned contigs",
-                                    "# conigs binned to HQ bins",
-                                    ])
+                                    "Total HQ bins",
+                                    "Total length (mbp)",
+                                    "HQ bins length (mbp)",
+                                    f"Length of high-covered (> {mindepth}) binned to HQ bins (mbp)",
+                                    "# binned sequences",
+                                    "# high-covered binned sequences",
+                                    "# high-covered binned in HQ sequences",
+                                    ]).sort_values(by="Total HQ bins", ascending=False)
 
+
+    summary.iloc[:, 2:5] /= 1_000_000
+    
     fig.update_traces(mode='markers', marker_line_width=1,
                       # marker_size=20,
                       # marker_opacity=0.9
@@ -129,17 +176,19 @@ def plot_different_tools_results(tools_results_paths, tool_names, min_completene
 
     names = '_'.join(tool_names)
 
-    fig.write_image(os.path.join(outdir, PLOT_NAME.format(names, mindepth)))
-    fig.write_html(os.path.join(outdir, HTML_NAME.format(names, mindepth)))
-    summary.to_csv(os.path.join(outdir, TSV_NAME.format(mindepth)), sep="\t", index=False)
-    summary.to_csv(os.path.join(outdir, CSV_NAME.format(mindepth)), index=False)
+    
 
+    plot_columns_from_summary(summary_df=summary, tool_name_col="Tool", outdir=outdir)
+    fig.write_image(os.path.join(outdir, OVERALL_PLOT_NAME.format(names, mindepth)))
+    fig.write_html(os.path.join(outdir, OVERALL_HTML_NAME.format(names, mindepth)))
+    summary.to_csv(Path(outdir, TSV_NAME.format(names, mindepth)), sep="\t", index=False, float_format=FLOAT_FORMAT)
+    summary.to_csv(Path(outdir, CSV_NAME.format(names, mindepth)), index=False, float_format=FLOAT_FORMAT)
 
-if __name__ == '__main__':
+def get_parser():
     parser = argparse.ArgumentParser("Plot tools Completeness/Purity scatterplot for chosen tools")
 
     parser.add_argument("-i", "--input_checkm", type=str, nargs="+",
-                        help="Checkm results stored at <CheckM_out/storage/bin_stats_ext.tsv>")
+                        help="Checkm results stored at <CheckM_out/.. (provide only main main checkm directories including storage/bin_stats_ext.tsv)")
     parser.add_argument("-l", "--labels", type=str, help="Corresponding labels for plot", nargs="+")
 
     parser.add_argument("-c", "--min-completeness", "--min_completeness", type=float, default=0.95,
@@ -155,13 +204,21 @@ if __name__ == '__main__':
 
     parser.add_argument("-o", "--outdir", type=str, help="Name of output file", default=os.getcwd())
 
+
+
+    return parser
+
+if __name__ == '__main__':
+    parser = get_parser()
     args = parser.parse_args()
 
     print(f"Arguments are: {args}")
 
     Path(args.outdir).mkdir(exist_ok=True, parents=True)
 
-    plot_different_tools_results(tools_results_paths=args.input_checkm,
+    
+    tools_results = [Path(checkm_result, "storage/bin_stats_ext.tsv") for checkm_result in args.input_checkm]
+    plot_different_tools_results(tools_results_paths=tools_results,
                                  tool_names=args.labels,
                                  min_completeness=args.min_completeness,
                                  min_purity=args.min_purity,

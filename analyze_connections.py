@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+from ast import parse
 import plotly.express as px
 from tqdm import tqdm
 import logging
@@ -26,10 +27,12 @@ def get_parser():
     parser.add_argument("-b", "--binning_results", help="Path to binning results",
                         type=str)
     parser.add_argument("-g", "--ground_truth", type=str,
-                        help="Path to golden standard or CHECKM`s lineage file")
+                        help="Path to golden standard FOR AMBER ONLY")
 
     parser.add_argument("-m", "--contact_map", type=str,
                         help="Path to contact map")
+    parser.add_argument("-s", "--scale_score",  type=str, help="Scaling function for Hi-C score",
+                        choices=["sqrt", "log"], default=None)
 
     parser.add_argument("--tool", type=str, choices=["checkm", "amber"])
     parser.add_argument("-r", "--report", type=str, help="AMBER or CHECKM summary file")
@@ -37,9 +40,10 @@ def get_parser():
     parser.add_argument("-d", "--depths", type=str, help="Depths of contigs")
 
     parser.add_argument("-o", "--outdir", default=os.getcwd())
-    parser.add_argument("-l", "--label")
+    parser.add_argument("-l", "--label", help="Label of a plot, e.g.: <label>_heatmap.png")
 
     parser.add_argument("--only_hq", "--only-hq", action="store_true")
+    parser.add_argument("--report_only_counts", action="store_true")
 
     return parser
 
@@ -60,29 +64,29 @@ def get_logger():
 if __name__ == '__main__':
 
     parser = get_parser()
-
     args = parser.parse_args()
     root = get_logger()
-    #
-    # root.info(f"Reading depths file {args.depths}")
-    # depths_ = pd.read_csv(args.depths, sep="\t").query("contigLen >= 2000")
-    # contig_depths = {contig: depth for contig, depth in
-    #                  zip(depths_["contigName"].values, depths_["totalAvgDepth"].values)}
-    # del depths_
-
+    
+    root.info(args)
     root.info(f"Reading contact map from {args.contact_map}")
-    contact_map = contact_map_processing.ContactMap(path=args.contact_map)
+    contact_map = contact_map_processing.ContactMap(path=args.contact_map, scaling_method=args.scale_score)
 
     root.info("Obtaining Hi-C connections")
-    hic_connections = set()
-    for c_1, c_2 in tqdm(contact_map.data[["FirstName", "SecondName"]].values,
-                         total=contact_map.data.shape[0]):
-        hic_connections.add((c_1, c_2))
-        hic_connections.add((c_2, c_1))
-
+    
+    hic_pairs = set()
+    hic_connections = defaultdict(lambda: defaultdict(int))
+    
+    for c_1, c_2, score in tqdm(contact_map.data[["FirstName", "SecondName", "SpadesScore"]].values,
+                        total=contact_map.data.shape[0]):
+        hic_connections[c_1][c_2] += score
+        hic_connections[c_2][c_1] += score
+        
+        hic_pairs.add((c_1, c_2))
+        hic_pairs.add((c_2, c_1))
+        
     root.info(f"Loading binning results from {args.binning_results}")
     labels = pd.read_csv(args.binning_results, comment="@", sep="\t",
-                         index_col=0, header=None, dtype=str)  # contigname | clusterr | [etc.]
+                        index_col=0, header=None, dtype=str)  # contigname | clusterr | [etc.]
 
     root.info("Assigning each contig to cluster")
 
@@ -133,92 +137,64 @@ if __name__ == '__main__':
 
     root.info("Building data for heatmap")
 
-    unvisited_connections = hic_connections.copy()
+    unvisited_connections = hic_pairs.copy()
     clustered_contigs = set(contig2bin.keys())
 
     HiC_LINKS_BETWEEN_BINS = defaultdict(lambda: defaultdict(int))
     HIC_links_between_contigs = defaultdict(list)
     i = 0
 
-    while unvisited_connections:
-        c_1, c_2 = unvisited_connections.pop()
-        unvisited_connections.discard((c_2, c_1))
+    if args.report_only_counts:
+        while unvisited_connections:
+            c_1, c_2 = unvisited_connections.pop()
+            unvisited_connections.discard((c_2, c_1))
 
-        cluster_1 = contig2bin.get(c_1)
-        cluster_2 = contig2bin.get(c_2)
+            cluster_1 = contig2bin.get(c_1)
+            cluster_2 = contig2bin.get(c_2)
 
-        if not all((cluster_1, cluster_2)):
-            continue
-        HiC_LINKS_BETWEEN_BINS[cluster_1][cluster_2] += 1
-        HiC_LINKS_BETWEEN_BINS[cluster_2][cluster_1] += cluster_1 != cluster_2
+            if not all((cluster_1, cluster_2)):
+                continue
+            HiC_LINKS_BETWEEN_BINS[cluster_1][cluster_2] += 1
+            HiC_LINKS_BETWEEN_BINS[cluster_2][cluster_1] += cluster_1 != cluster_2
 
-        HIC_links_between_contigs[c_1].append(c_2)
-        HIC_links_between_contigs[c_2].append(c_1)
+            HIC_links_between_contigs[c_1].append(c_2)
+            HIC_links_between_contigs[c_2].append(c_1)
 
-        i += 1 + (cluster_1 != cluster_2)
-        if i % 1000 == 0:
-            root.info(f"Processed {i} pairs")
-    #
-    # root.info("Estimating high-covered contigs misbinnings...")
-    #
-    # percentage_of_genome_high_covered_misclustered_HIC_LINKS = defaultdict(float)
-    # percentage_of_genome_high_covered_misclustered_NO_HIC_LINKS = defaultdict(float)
-    #
-    # for _, (contig, cluster, contig_length) in tqdm(labels.iterrows(), total=labels.shape[0]):
-    #     contig_genome = contig2genome.get(contig)
-    #     if not contig_genome:
-    #         continue
-    #     ratio_of_genome = contig_length / genome_lengths[contig_genome]
-    #     contig_coverage = contig_depths.get(contig) if contig_depths.get(contig) else float(re.findall("cov_(\d+\.\d*)", contig)[0])
-    #
-    #     if contig_coverage < 1000 and ratio_of_genome < 0.01:
-    #         continue
-    #
-    #     contig_binid = contig2bin[contig]
-    #     try:
-    #         genome_in_contig_bin = amber_summary.loc[contig_binid, "genome_id"]
-    #         genome_length = genome_lengths[genome_in_contig_bin]
-    #         ratio_of_genome_in_bin = amber_summary.loc[contig_binid, "tp_length"] / genome_length
-    #
-    #         bin_size_sequences = amber_summary.loc[contig_binid, "total_seq_counts"]
-    #     except KeyError:
-    #         continue
-    #
-    #     if bin_size_sequences > 1:
-    #         continue
-    #
-    #     for contig_2 in HIC_links_between_contigs[contig]:
-    #         if contig_2 not in contig2genome:
-    #             continue
-    #
-    #         try:
-    #             contig2_binid = contig2bin[contig_2]
-    #             contig2_genome = contig2genome[contig_2]
-    #             genome_in_contig2_bin = amber_summary.loc[contig2_binid, "genome_id"]
-    #             contig2_bin_TP_length = amber_summary.loc[contig2_binid, "tp_length"] / genome_length
-    #             contig2_bin_TP_size_sequences = amber_summary.loc[contig2_binid, "tp_seq_counts"]
-    #
-    #             if all((
-    #                     contig_genome == contig2_genome, contig_binid != contig2_binid, ratio_of_genome_in_bin >= 0.5
-    #             )):
-    #                 percentage_of_genome_high_covered_misclustered_HIC_LINKS[contig_genome] += ratio_of_genome
-    #                 break
-    #         except KeyError:
-    #             continue
-    #     else:
-    #         if HIC_links_between_contigs[contig] and not genome_length == contig_length:
-    #             percentage_of_genome_high_covered_misclustered_NO_HIC_LINKS[contig_genome] += ratio_of_genome
-    #
-    # breakpoint()
+            i += 1 + (cluster_1 != cluster_2)
+            if i % 1000 == 0:
+                root.info(f"Processed {i} pairs")
+    else:
+        while unvisited_connections:
+            c_1, c_2 = unvisited_connections.pop()
+            unvisited_connections.discard((c_2, c_1))
+
+            cluster_1 = contig2bin.get(c_1)
+            cluster_2 = contig2bin.get(c_2)
+            
+            score = hic_connections[c_1][c_2]
+
+            if not all((cluster_1, cluster_2)):
+                continue
+            HiC_LINKS_BETWEEN_BINS[cluster_1][cluster_2] += score
+            HiC_LINKS_BETWEEN_BINS[cluster_2][cluster_1] += (cluster_1 != cluster_2) * score
+
+            HIC_links_between_contigs[c_1].append(c_2)
+            HIC_links_between_contigs[c_2].append(c_1)
+
+            i += 1 + (cluster_1 != cluster_2)
+            if i % 1000 == 0:
+                root.info(f"Processed {i} pairs")
+
+
 
     all_binids = sorted(
-        filter(lambda x: all((sum(HiC_LINKS_BETWEEN_BINS[x].values()) - HiC_LINKS_BETWEEN_BINS[x][x] > 10,
-                              x in bin2genome and bin2genome[x] != "root")),
-               HiC_LINKS_BETWEEN_BINS.keys()), key=lambda bin_: bin2genome[bin_])
+        filter(lambda x: all((sum(HiC_LINKS_BETWEEN_BINS[x].values()) - HiC_LINKS_BETWEEN_BINS[x][x] > 10 * bool(args.report_only_counts),
+                            x in bin2genome and bin2genome[x] != "root")),
+        HiC_LINKS_BETWEEN_BINS.keys()), key=lambda bin_: bin2genome[bin_])
 
     root.info("Creating dataframe...")
     data_for_heatmap = np.array([
-        [np.log10(HiC_LINKS_BETWEEN_BINS[binid].get(bin_id_internal,0) + 1) / (1 + (bin2length[bin_id_internal] + bin2length[binid]) // 100_000) for bin_id_internal in all_binids]
+        [np.log10(HiC_LINKS_BETWEEN_BINS[binid].get(bin_id_internal,0) + 1) / ((bin2length[bin_id_internal] + bin2length[binid]) // 100_000) for bin_id_internal in all_binids]
         for binid in reversed(all_binids)]).astype(np.float64)
 
     # breakpoint()
@@ -233,10 +209,11 @@ if __name__ == '__main__':
     all_binids = tuple(
         map(lambda x: f"{x} ({bin2genome.get(x)}) LEN {bin2length[x]}", all_binids))
 
+    COLOR = "Normalised Log10(Hi-C score)" if not args.report_only_counts else "Normalized Log10(Hi-C links)"
     fig = px.imshow(
         # np.log10(data_for_heatmap + 1),
         data_for_heatmap,
-        labels=dict(x="BINID", y="BINID", color="Normalized Log10(Hi-C links)"),
+        labels=dict(x="BINID", y="BINID", color=COLOR),
         x=all_binids,
         y=all_binids[::-1],
         aspect="auto",
@@ -245,17 +222,24 @@ if __name__ == '__main__':
         width=1500,
     )
 
-    z_text = [
-        [f"{data_for_heatmap[i, j]} Hi-C links" for j in range(data_for_heatmap.shape[1])] for i in range(
-            data_for_heatmap.shape[0])
-    ]
+    if args.report_only_counts:
+        
+        z_text = [
+            [f"{data_for_heatmap[i, j]} normalised Hi-C links" for j in range(data_for_heatmap.shape[1])] for i in range(
+                data_for_heatmap.shape[0])
+        ]
+    else:
+        z_text = [
+            [f"{data_for_heatmap[i, j]} normalised Hi-C score" for j in range(data_for_heatmap.shape[1])] for i in range(
+                data_for_heatmap.shape[0])
+        ]
 
     # fig.update_traces(hovertemplate="Bins %{x} X %{y}<extra></extra>")
     # fig.update_xaxes(visible=False)
     # fig.update_yaxes(visible=False)
 
     Path(args.outdir).mkdir(exist_ok=True, parents=True)
-    fig.write_image(os.path.join(args.outdir, f"{args.label}_heatmap.png"))
-    fig.write_html(os.path.join(args.outdir, f"{args.label}_heatmap.html"))
+    fig.write_image(os.path.join(args.outdir, f"{args.label + '_' if args.label else ''}{'links_' if args.report_only_counts else 'scores_'}{'hq_' if args.only_hq else ''}heatmap.png"))
+    fig.write_html(os.path.join(args.outdir, f"{args.label + '_' if args.label else ''}{'links_' if args.report_only_counts else 'scores_'}{'hq_' if args.only_hq else ''}heatmap.html"))
 
     root.info(f"Heatmap saved at {args.outdir}")
