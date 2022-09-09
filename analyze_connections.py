@@ -38,6 +38,8 @@ def get_parser():
     parser.add_argument("-r", "--report", type=str, help="AMBER or CHECKM summary file")
 
     parser.add_argument("-d", "--depths", type=str, help="Depths of contigs")
+    parser.add_argument("--score_norm", choices=["length", "num"], default=None)
+    parser.add_argument("--lognorm_score", action="store_true")
 
     parser.add_argument("-o", "--outdir", default=os.getcwd())
     parser.add_argument("-l", "--label", help="Label of a plot, e.g.: <label>_heatmap.png")
@@ -74,7 +76,7 @@ if __name__ == '__main__':
     root.info("Obtaining Hi-C connections")
     
     hic_pairs = set()
-    hic_connections = defaultdict(lambda: defaultdict(int))
+    hic_connections = defaultdict(lambda: defaultdict(float))
     
     for c_1, c_2, score in tqdm(contact_map.data[["FirstName", "SecondName", "SpadesScore"]].values,
                         total=contact_map.data.shape[0]):
@@ -91,6 +93,8 @@ if __name__ == '__main__':
     root.info("Assigning each contig to cluster")
 
     contig2bin = dict(zip(labels.index, labels.iloc[:, 0]))
+    bin2seq_size = labels.groupby(1).size()
+    bin2seq_size = dict(zip(bin2seq_size.index, bin2seq_size.values))
 
     if args.tool == "amber":
         bin2genome = {}
@@ -140,7 +144,7 @@ if __name__ == '__main__':
     unvisited_connections = hic_pairs.copy()
     clustered_contigs = set(contig2bin.keys())
 
-    HiC_LINKS_BETWEEN_BINS = defaultdict(lambda: defaultdict(int))
+    HiC_LINKS_BETWEEN_BINS = defaultdict(lambda: defaultdict(float))
     HIC_links_between_contigs = defaultdict(list)
     i = 0
 
@@ -187,17 +191,58 @@ if __name__ == '__main__':
 
 
 
-    all_binids = sorted(
-        filter(lambda x: all((sum(HiC_LINKS_BETWEEN_BINS[x].values()) - HiC_LINKS_BETWEEN_BINS[x][x] > 10 * bool(args.report_only_counts),
-                            x in bin2genome and bin2genome[x] != "root")),
-        HiC_LINKS_BETWEEN_BINS.keys()), key=lambda bin_: bin2genome[bin_])
+        all_binids = tuple(sorted(
+            filter(lambda x: all((sum(HiC_LINKS_BETWEEN_BINS[x].values()) - HiC_LINKS_BETWEEN_BINS[x][x] > 10 * bool(args.report_only_counts),
+                                x in bin2genome and bin2genome[x] != "root")),
+        HiC_LINKS_BETWEEN_BINS.keys()), key=lambda bin_: bin2genome[bin_]))
 
     root.info("Creating dataframe...")
-    data_for_heatmap = np.array([
-        [np.log10(HiC_LINKS_BETWEEN_BINS[binid].get(bin_id_internal,0) + 1) / ((bin2length[bin_id_internal] + bin2length[binid]) // 100_000) for bin_id_internal in all_binids]
-        for binid in reversed(all_binids)]).astype(np.float64)
-
-    # breakpoint()
+    
+    if args.lognorm_score:
+        raw_data = np.array([
+            [np.log10(HiC_LINKS_BETWEEN_BINS[binid].get(bin_id_internal, 0) + 1) for bin_id_internal in all_binids]
+            for binid in reversed(all_binids)]).astype(np.float64)
+        
+    else:
+        raw_data = np.array([
+            [HiC_LINKS_BETWEEN_BINS[binid].get(bin_id_internal,0) for bin_id_internal in all_binids]
+            for binid in reversed(all_binids)]).astype(np.float64)
+        
+    data_for_heatmap = np.zeros_like(raw_data)
+    
+    if args.score_norm == 'length':
+        for i in range(data_for_heatmap.shape[0]):
+            binid_i = all_binids[len(all_binids) - i - 1]
+            len_i = bin2length[binid_i]
+            for j in range(i + 1, data_for_heatmap.shape[0]):
+                binid_j = all_binids[j]
+                len_j = bin2length[binid_j]
+                
+                data_for_heatmap[i, j] = raw_data[i, j] / ((binid_i + binid_j) // 100_000)
+                data_for_heatmap[j, i] = raw_data[j, i] / ((binid_i + binid_j) // 100_000)
+                
+        for i in range(data_for_heatmap.shape[0]):
+            len_i = bin2length[all_binids[len(all_binids) - i - 1]]
+            data_for_heatmap[i, i] = raw_data[i,i] / (len_i // 100_000)
+                
+    
+    elif args.score_norm == 'number':
+        for i in range(data_for_heatmap.shape[0]):
+            binid_i = all_binids[len(all_binids) - i - 1]
+            seqs_num_i = bin2seq_size[binid_i]
+            for j in range(i + 1, data_for_heatmap.shape[0]):
+                binid_j = all_binids[j]
+                seqs_num_j = bin2seq_size[binid_j]
+                
+                data_for_heatmap[i, j] = raw_data[i, j] / (seqs_num_i + seqs_num_j)
+                data_for_heatmap[j, i] = raw_data[j, i] / (seqs_num_i + seqs_num_j)
+                
+        for i in range(data_for_heatmap.shape[0]):
+            seqs_num_i = bin2seq_size[all_binids[len(all_binids) - i - 1]]
+            data_for_heatmap[i, i] = raw_data[i,i] / seqs_num_i
+    else:
+        data_for_heatmap = raw_data
+            
     root.debug(f"{data_for_heatmap.shape=}")
 
     root.info("Drawing heatmap")
@@ -208,8 +253,11 @@ if __name__ == '__main__':
     #     index = set(checkm_result.index)
     all_binids = tuple(
         map(lambda x: f"{x} ({bin2genome.get(x)}) LEN {bin2length[x]}", all_binids))
-
-    COLOR = "Normalised Log10(Hi-C score)" if not args.report_only_counts else "Normalized Log10(Hi-C links)"
+    
+    if args.lognorm_score:
+        COLOR = "Normalised Log10(Hi-C score)" if not args.report_only_counts else "Normalized Log10(Hi-C links)"
+    else:
+        COLOR = "HiC-score"
     fig = px.imshow(
         # np.log10(data_for_heatmap + 1),
         data_for_heatmap,

@@ -11,7 +11,6 @@ __doc__ = """Module for handling initial data formats and transforming them to r
 
 import os
 import sys
-import shutil
 
 package_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, os.path.join(package_dir, "working_dir"))  # Add directory to path if User hasn`t done it yet
@@ -22,6 +21,7 @@ import contact_map_processing
 import io_prep_tools
 from tqdm import tqdm
 import numpy as np
+from pathlib import Path
 
 
 def initialize_logger():
@@ -69,10 +69,10 @@ if __name__ == '__main__':
 
     # initial assembly_graph
 
-    parser.add_argument("-g", "--gfa_graph", type=str, required=True, help="File with assembly graph if .gfa format")
+    parser.add_argument("-g", "--gfa_graph", type=str, help="File with assembly graph if .gfa format")
 
     # parser.add_argument("-d", "--")
-    parser.add_argument("--scaling", type=str, choices=["sqrt", "log"], default="log",
+    parser.add_argument("--scaling", type=str, choices=["sqrt", "log"], default=None,
                         help="Method of scaling Hi-C adjacency score")
     parser.add_argument("-e", "--edge_columns", type=str, nargs=2, default=["FirstName", "SecondName"],
                         help="Column names from contact map containing contig names with Hi-C link")
@@ -107,6 +107,7 @@ if __name__ == '__main__':
     parser.add_argument("--labels", type=str, help="File with known ground-truth")
     parser.add_argument("--header", type=str, help="Path for header file for AMBER tool")
     parser.add_argument("--draw", action="store_true", help="Option for drowing contigs lengths distribution")
+    parser.add_argument("--no_fasta", action="store_true")
 
     args = parser.parse_args()
 
@@ -122,11 +123,10 @@ if __name__ == '__main__':
             f"Directory {args.outdir} already exists! Specify another one or use '--force' to overwrite")
 
     elif os.path.isdir(args.outdir) and args.force:
-        shutil.rmtree(args.outdir, ignore_errors=True)
         # Inform user about directory overwriting:
-        warning = f"Force overwriting directory {args.outdir}"
+        warning = f"Force overwriting files with same names in the directory {args.outdir}"
 
-    os.mkdir(args.outdir)
+    Path(args.outdir).mkdir(parents=True, exist_ok=True)
     root = initialize_logger()
     if warning:
         root.warning(warning)
@@ -208,6 +208,7 @@ if __name__ == '__main__':
         root.info(f"Saving contact graph to {os.path.join(args.outdir, 'contact_map')}.npz")
         io_prep_tools.create_npz(out_file_name=os.path.join(args.outdir, "contact_map"),
                                  features_csr=sparse_features,
-                                 adj_csr=sparse_adj)
+                                 adj_csr=sparse_adj,
+                                 )
 
     root.info(f"DONE! All results are saved in {args.outdir}")

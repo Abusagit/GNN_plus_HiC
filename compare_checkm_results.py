@@ -28,7 +28,9 @@ FLOAT_FORMAT = "{:.2f} mbp".format
 
 def plot_columns_from_summary(summary_df, tool_name_col, outdir):
     
-    summary_cols = tuple(filter(lambda x: x!= tool_name_col, summary_df.columns))
+    
+    # summary_df.drop(tool_name_col, axis=1, inplace=True)
+    summary_cols = summary_df.columns[1:] # tuple(filter(lambda x: x!= tool_name_col, summary_df.columns))
 
     traces = []
     titles = []
@@ -44,7 +46,7 @@ def plot_columns_from_summary(summary_df, tool_name_col, outdir):
         traces.append(trace)
         titles.append(title)
 
-    fig = make_subplots(rows=len(summary_cols), cols=1, shared_xaxes=False, vertical_spacing=0.055, 
+    fig = make_subplots(rows=len(summary_cols), cols=1, shared_xaxes=False, vertical_spacing=0.08, 
     subplot_titles=titles)
 
     for subplot_index, trace in enumerate(traces, 1):
@@ -72,12 +74,15 @@ def plot_different_tools_results(tools_results_paths, tool_names, min_completene
         nonlocal contig_depths_lengths
 
         binning = pd.read_csv(binning_file, sep="\t", comment="@", index_col=0, header=None, dtype=str)
+    
 
         HQ_bins = set(hq_data.index.values)
 
         # overall_len = overall_binned_contigs = hq_total_len = hq_total_num = hq_length_binned_in_hq_bin = hq_binned_in_hq_bin_num = 0
-
-        requested_contigs = contig_depths_lengths.loc[binning.index, ["Length", "Depth"]].astype(int)
+        try:
+            requested_contigs = contig_depths_lengths.loc[binning.index, ["Length", "Depth"]].astype(float)
+        except:
+            breakpoint()
         binning["Length"], binning["Depth"] = requested_contigs["Length"], requested_contigs["Depth"]
         # for contig, (binid, *_) in tqdm(binning.iterrows(), total=binning.shape[0], desc="Checking binned contigs..."):
         #     # breakpoint()
@@ -107,10 +112,13 @@ def plot_different_tools_results(tools_results_paths, tool_names, min_completene
         hq_total_len = hq_data["Genome size"].sum()
         hq_total_num = query.shape[0]
 
+        # breakpoint()
         filtered_index = list(filter(lambda c: binning.loc[c, 1] in HQ_bins, query.index.values))
         query = query.loc[filtered_index]
         hq_binned_in_hq_bin_num = query.shape[0]
+        # breakpoint()
         hq_length_binned_in_hq_bin = query["Length"].sum()
+        # breakpoint()
 
         # breakpoint()
 
@@ -133,12 +141,13 @@ def plot_different_tools_results(tools_results_paths, tool_names, min_completene
         summary.append([tool_name, *get_contigs_summary(hq_data=df, binning_file=binning_result)])  # name, # of HQ genomes
         # breakpoint()
 
+        df.reset_index(inplace=True)
         fig.add_trace(go.Scatter(y=df["Completeness"], x=df["Purity"],
                                  mode="markers",
                                  name=f"{tool_name}\n({df.shape[0]})",
                                  marker_size=df["Genome size"] / 100_000,
                                 #  opacity=0.99,
-                                 hovertext=df["Genome size"]
+                                 hovertext=df["binid"]
 
                                  ))
 
@@ -148,9 +157,9 @@ def plot_different_tools_results(tools_results_paths, tool_names, min_completene
                                     "Total length (mbp)",
                                     "HQ bins length (mbp)",
                                     f"Length of high-covered (> {mindepth}) binned to HQ bins (mbp)",
-                                    "# binned sequences",
-                                    "# high-covered binned sequences",
-                                    "# high-covered binned in HQ sequences",
+                                    "Sequences binned",
+                                    "High-covered binned",
+                                    "High-covered binned to HQ bins",
                                     ]).sort_values(by="Total HQ bins", ascending=False)
 
 
@@ -186,7 +195,7 @@ def plot_different_tools_results(tools_results_paths, tool_names, min_completene
 
 def get_parser():
     parser = argparse.ArgumentParser("Plot tools Completeness/Purity scatterplot for chosen tools")
-
+    
     parser.add_argument("-i", "--input_checkm", type=str, nargs="+",
                         help="Checkm results stored at <CheckM_out/.. (provide only main main checkm directories including storage/bin_stats_ext.tsv)")
     parser.add_argument("-l", "--labels", type=str, help="Corresponding labels for plot", nargs="+")
@@ -217,8 +226,10 @@ if __name__ == '__main__':
     Path(args.outdir).mkdir(exist_ok=True, parents=True)
 
     
-    tools_results = [Path(checkm_result, "storage/bin_stats_ext.tsv") for checkm_result in args.input_checkm]
-    plot_different_tools_results(tools_results_paths=tools_results,
+    checkm_inputs = [checkm_input if checkm_input.split('.')[-1] == "tsv" else f"{checkm_input}/storage/bin_stats_ext.tsv" for checkm_input in args.input_checkm]
+    
+    # tools_results = [Path(checkm_result, "storage/bin_stats_ext.tsv") for checkm_result in args.input_checkm]
+    plot_different_tools_results(tools_results_paths=checkm_inputs,
                                  tool_names=args.labels,
                                  min_completeness=args.min_completeness,
                                  min_purity=args.min_purity,

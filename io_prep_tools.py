@@ -14,7 +14,7 @@ from collections import defaultdict
 import plotly.express as px
 import bisect
 import ast
-
+import scipy
 
 logger = logging.getLogger(__name__)
 
@@ -212,52 +212,86 @@ def mimic_jgi(contigs_with_info_in_names, initial_assembly_graph,
 def create_gfa_file(hic_data, required_contigs, scaffolds_file,
                     # contact_map,
                     initial_assembly_graph,
+                    save_fasta_file=None,
                     saving_dir="./", mimic=True,
-                    save_gfa_file="assembly_graph.gfa",
-                    save_fasta_file="assembly.fasta"):
+                    save_gfa_file="assembly_graph.gfa",):
     """    """
 
     # Processing scaffolds first:
 
     required_contigs_set = set(required_contigs)
     save_gfa_file = os.path.join(saving_dir, save_gfa_file)
-    save_fasta_file = os.path.join(saving_dir, save_fasta_file)
+    
 
-    with open(save_gfa_file, "w") as save_gfa, open(save_fasta_file, "w") as save_fasta:
-        contig2sequence = defaultdict(list)
-        S_STRING = "S {} {}\n"
-        L_STRING = "L {} + {} + 0M RC:i:{}\n"
+    if save_fasta_file:
+        save_fasta_file = os.path.join(saving_dir, save_fasta_file)
+        with open(save_gfa_file, "w") as save_gfa, open(save_fasta_file, "w") as save_fasta:
+            contig2sequence = defaultdict(list)
+            S_STRING = "S {} {}\n"
+            L_STRING = "L {} + {} + 0M RC:i:{}\n"
 
-        lengths = []
+            lengths = []
 
-        with open(scaffolds_file) as scaffolds:
-            header = scaffolds.readline().strip()[1:]
-            #             headers.append(header)
+            with open(scaffolds_file) as scaffolds:
+                header = scaffolds.readline().strip()[1:]
+                #             headers.append(header)
 
-            for line in tqdm(scaffolds, desc=f"Reading {scaffolds_file}"):
-                if line.startswith(">"):
-                    contig2sequence[header] = ''.join(contig2sequence[header])
+                for line in tqdm(scaffolds, desc=f"Reading {scaffolds_file}"):
+                    if line.startswith(">"):
+                        contig2sequence[header] = ''.join(contig2sequence[header])
 
-                    if header in required_contigs_set:
-                        save_gfa.write(S_STRING.format(*(header, contig2sequence[header])))
-                        lengths.append(len(contig2sequence[header]))
-                        save_fasta.write(f">{header}\n{contig2sequence[header]}\n")
+                        if header in required_contigs_set:
+                            save_gfa.write(S_STRING.format(*(header, contig2sequence[header])))
+                            lengths.append(len(contig2sequence[header]))
+                            save_fasta.write(f">{header}\n{contig2sequence[header]}\n")
 
-                    header = line.strip()[1:]
+                        header = line.strip()[1:]
+                    else:
+                        contig2sequence[header].append(line.strip())
                 else:
-                    contig2sequence[header].append(line.strip())
-            else:
-                contig2sequence[header] = ''.join(contig2sequence[header])
-                if header in required_contigs_set:
-                    lengths.append(len(contig2sequence[header]))
-                    save_gfa.write(S_STRING.format(*(header, contig2sequence[header])))
-                    save_fasta.write(f">{header}\n{contig2sequence[header]}\n")
+                    contig2sequence[header] = ''.join(contig2sequence[header])
+                    if header in required_contigs_set:
+                        lengths.append(len(contig2sequence[header]))
+                        save_gfa.write(S_STRING.format(*(header, contig2sequence[header])))
+                        save_fasta.write(f">{header}\n{contig2sequence[header]}\n")
+            for _, row in tqdm(hic_data.data.iterrows(), total=hic_data.data.shape[0],
+                            desc="Extracting Hi-C scores between contigs"):
+                contig_1_2_score = row[[hic_data.node_1, hic_data.node_2, hic_data.score_column]]
 
-        for _, row in tqdm(hic_data.data.iterrows(), total=hic_data.data.shape[0],
-                           desc="Extracting Hi-C scores between contigs"):
-            contig_1_2_score = row[[hic_data.node_1, hic_data.node_2, hic_data.score_column]]
+                save_gfa.write(L_STRING.format(*contig_1_2_score))
+    else:
+        with open(save_gfa_file, "w") as save_gfa:
+            contig2sequence = defaultdict(list)
+            S_STRING = "S {} {}\n"
+            L_STRING = "L {} + {} + 0M RC:i:{}\n"
 
-            save_gfa.write(L_STRING.format(*contig_1_2_score))
+            lengths = []
+
+            with open(scaffolds_file) as scaffolds:
+                header = scaffolds.readline().strip()[1:]
+                #             headers.append(header)
+
+                for line in tqdm(scaffolds, desc=f"Reading {scaffolds_file}"):
+                    if line.startswith(">"):
+                        contig2sequence[header] = ''.join(contig2sequence[header])
+
+                        if header in required_contigs_set:
+                            save_gfa.write(S_STRING.format(*(header, contig2sequence[header])))
+                            lengths.append(len(contig2sequence[header]))
+                        header = line.strip()[1:]
+                    else:
+                        contig2sequence[header].append(line.strip())
+                else:
+                    contig2sequence[header] = ''.join(contig2sequence[header])
+                    if header in required_contigs_set:
+                        lengths.append(len(contig2sequence[header]))
+                        save_gfa.write(S_STRING.format(*(header, contig2sequence[header])))
+
+            for _, row in tqdm(hic_data.data.iterrows(), total=hic_data.data.shape[0],
+                            desc="Extracting Hi-C scores between contigs"):
+                contig_1_2_score = row[[hic_data.node_1, hic_data.node_2, hic_data.score_column]]
+
+                save_gfa.write(L_STRING.format(*contig_1_2_score))
 
     logger.info(f"Assembly contigs were saved to {save_fasta_file}")
     logger.info(f"Assembly graph was saved to {save_gfa_file}")
