@@ -137,7 +137,7 @@ def plot_different_tools_results(tools_results_paths, tool_names, min_completene
         df = CheckMResult(path=result).get_HQ_bins(completeness_lower_bound=min_completeness,
                                                    purity_lower_bound=min_purity
                                                    )
-
+        # breakpoint()
         summary.append([tool_name, *get_contigs_summary(hq_data=df, binning_file=binning_result)])  # name, # of HQ genomes
         # breakpoint()
 
