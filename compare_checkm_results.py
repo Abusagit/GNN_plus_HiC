@@ -15,11 +15,11 @@ from tqdm import tqdm
 from io_prep_tools import CheckMResult
 from pathlib import Path
 
-OVERALL_PLOT_NAME = "summary_{}_mindepth_{}.png"
-OVERALL_HTML_NAME = "summary_{}_mindepth_{}.html"
+OVERALL_PLOT_NAME = "summary_mindepth_{}.png"
+OVERALL_HTML_NAME = "summary_mindepth_{}.html"
 
-TSV_NAME = "summary_{}_mindepth_{}.tsv"
-CSV_NAME = "summary_{}_mindepth_{}.csv"
+TSV_NAME = "summary_mindepth_{}.tsv"
+CSV_NAME = "summary_mindepth_{}.csv"
 
 SUMMARY_PLOT_NAME = "columns_summary.{}"  # format [png, html]
 
@@ -183,15 +183,14 @@ def plot_different_tools_results(tools_results_paths, tool_names, min_completene
                           xanchor="left",
                           x=0.01, orientation="h"))
 
-    names = '_'.join(tool_names)
 
     
 
     plot_columns_from_summary(summary_df=summary, tool_name_col="Tool", outdir=outdir)
-    fig.write_image(os.path.join(outdir, OVERALL_PLOT_NAME.format(names, mindepth)))
-    fig.write_html(os.path.join(outdir, OVERALL_HTML_NAME.format(names, mindepth)))
-    summary.to_csv(Path(outdir, TSV_NAME.format(names, mindepth)), sep="\t", index=False, float_format=FLOAT_FORMAT)
-    summary.to_csv(Path(outdir, CSV_NAME.format(names, mindepth)), index=False, float_format=FLOAT_FORMAT)
+    fig.write_image(os.path.join(outdir, OVERALL_PLOT_NAME.format(mindepth)))
+    fig.write_html(os.path.join(outdir, OVERALL_HTML_NAME.format(mindepth)))
+    summary.to_csv(Path(outdir, TSV_NAME.format(mindepth)), sep="\t", index=False, float_format=FLOAT_FORMAT)
+    summary.to_csv(Path(outdir, CSV_NAME.format(mindepth)), index=False, float_format=FLOAT_FORMAT)
 
 def get_parser():
     parser = argparse.ArgumentParser("Plot tools Completeness/Purity scatterplot for chosen tools")
