@@ -5,22 +5,18 @@ New_dim - # of mapped dimensions
 
 """
 
-from sklearn.manifold import TSNE
 import argparse
 from tqdm import tqdm
-import pandas as pd
-from sklearn.manifold import TSNE
 from pathlib import Path
 import pickle
-import numpy as np
 import os
-
+import pandas as pd
 
 DEFAULT_NAME = "{}_reduced.tsv"
 
 
 def handle_filename(filename):
-    if filename.split('.')[-1] == "pkl": # pickle with contig names as key and values as embeddings
+    if filename.split('.')[-1] == "pkl" or filename.split('.')[-1] == "pickle": # pickle with contig names as key and values as embeddings
         with open(filename, "rb") as handler:
             _data = pickle.load(handler)
             data = pd.DataFrame.from_dict(_data, orient="index")
@@ -58,7 +54,7 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--input", nargs="+", help="embeddings in .tsv format")
     parser.add_argument("-o", "--output", default=None)
     parser.add_argument("-d", "--ndimensions", default=3)
-    parser.add_argument("--njobs", default=min(10, os.cpu_count()), type=int)
+    parser.add_argument("--njobs", default=8, type=int)
     
     args = parser.parse_args()
     
@@ -70,6 +66,12 @@ if __name__ == "__main__":
     
     outdir.mkdir(exist_ok=True, parents=True)
     
+    os.environ['OPENBLAS_NUM_THREADS'] = str(args.njobs)
+    
+    import numpy as np
+    from sklearn.manifold import TSNE
+
+
     if not args.output:
         
         tmp = Path("reduced_embeddings")
@@ -79,7 +81,7 @@ if __name__ == "__main__":
             outname = str(outdir / DEFAULT_NAME.format(e_old))
             e_new.to_csv(outname, sep='\t', index=True)
             
-            os.symlink(outname, tmp)
+            os.symlink(tmp / outname, tmp / DEFAULT_NAME.format(e_old))
             
     else:
         for e_new, e_old in zip(get_reduced_embeddings(*args.input, ndims=args.ndimensions), names):
