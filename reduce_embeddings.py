@@ -6,7 +6,13 @@ New_dim - # of mapped dimensions
 """
 import os
 
-os.environ['OPENBLAS_NUM_THREADS'] = '6'
+DEFAULT_PROCESSES = min(os.cpu_count(), 8)
+os.environ['OPENBLAS_NUM_THREADS'] = str(DEFAULT_PROCESSES)
+# These MUST be set before importing numpy
+# I know this is a shitty hack, see https://github.com/numpy/numpy/issues/11826
+os.environ["MKL_NUM_THREADS"] = str(DEFAULT_PROCESSES)
+os.environ["NUMEXPR_NUM_THREADS"] = str(DEFAULT_PROCESSES)
+os.environ["OMP_NUM_THREADS"] = str(DEFAULT_PROCESSES)
 
 
 import argparse
