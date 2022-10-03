@@ -1,0 +1,11 @@
+{
+    "fasta": false,
+    "assembly_graph": false,
+    "depths_file": false,
+    "contact_map": false,
+    "cores": "32",
+    "checkm_output_root": false,
+    "binner_output_root": false,
+    "aggregation_neighbors": "30",
+    "aggregation_iterations": "1"
+}
