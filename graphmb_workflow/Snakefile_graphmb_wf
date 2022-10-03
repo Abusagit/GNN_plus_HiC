@@ -1,0 +1,112 @@
+from pathlib import Path
+import os
+
+#configurations
+FASTA_ASSEMBLY = config.get("fasta")
+ASSEMBLY_GRAPH = config.get("assembly_graph")
+CONTIG_DEPTHS = config.get("depths_file")
+CONTACT_MAP = config.get("contact_map")
+NUM_CORES = int(config.get("cores"))
+
+checkm_output_root = config.get("checkm_output_root")
+binner_output_root = config.get("binner_output_root")
+
+AGGREGATION_K_NEIGHBORS = config.get("aggregation_neighbors")
+AGGREGATION_NUM_ITERATIONS = config.get("aggregation_iterations")
+AGGREGATION_MODE = config.get("aggregation_mode")
+
+CONTIG_MINLEN = config.get("contig_minlen")
+BIN_MINLEN = config.get("bin_minlen")
+
+AGGREGATION_MODE = AGGREGATION_MODE or "None"
+
+binner_postfix = config.get("postfix_name", '')
+
+if AGGREGATION_MODE != "None":
+    vamb_outdir = "vamb_aggregated_{}_neighbors_{}_iters_{}".format(AGGREGATION_K_NEIGHBORS, AGGREGATION_NUM_ITERATIONS, AGGREGATION_MODE)
+else:
+    vamb_outdir = "vamb"
+
+vamb_outdir += binner_postfix
+
+reduced_embeddings_output = os.path.join(vamb_outdir + f"{binner_output_root}_reduced.tsv")
+
+
+graphmb_outdir = "graphmb_" + vamb_outdir
+
+
+VAMB_BINNER_OUT = os.path.join(binner_output_root, vamb_outdir)
+GRAPHMB_BINNER_OUT = os.path.join(binner_output_root, graphmb_outdir)
+
+CHECKM_VAMB_OUT = os.path.join(checkm_output_root, vamb_outdir)
+CHECKM_GRAPHMB_OUT = os.path.join(checkm_output_root, graphmb_outdir)
+
+
+
+
+rule all:
+    input:
+        os.path.join(CHECKM_VAMB_OUT, "storage/bin_stats_ext.tsv"),
+        os.path.join(CHECKM_VAMB_OUT, "storage/bin_stats_ext.tsv"),
+        reduced_embeddings_output
+rule vamb:
+    input:
+        fasta = FASTA_ASSEMBLY,
+        jgi = CONTIG_DEPTHS,
+        contact_map = CONTACT_MAP
+
+    output:
+        os.path.join(VAMB_BINNER_OUT, "clusters.tsv"),
+        os.path.join(VAMB_BINNER_OUT, "embs.tsv"),
+        os.path.join(VAMB_BINNER_OUT, "embs_aggregated.tsv"),
+        os.path.join(VAMB_BINNER_OUT, "bins/")
+    threads: 
+        NUM_CORES
+    conda:
+        "ml"
+    shell:
+        "rm -rf {VAMB_BINNER_OUT};" # crashes with error if this line is not printed (mb because outdir is being created somewhere before implicitly)
+        "vamb -p {threads} --outdir {VAMB_BINNER_OUT} -m {CONTIG_MINLEN} --minfasta {BIN_MINLEN} -k {AGGREGATION_K_NEIGHBORS} --aggregation_runs {AGGREGATION_NUM_ITERATIONS} --option {AGGREGATION_MODE} --jgi {input.jgi} --fasta {input.fasta} --contact_map {input.contact_map}"
+
+rule graphmb:
+    input:
+        features = os.path.join(VAMB_BINNER_OUT, "embs_aggregated.tsv"),
+        graph = ASSEMBLY_GRAPH,
+        jgi = CONTIG_DEPTHS,
+        fasta = FASTA_ASSEMBLY
+    output:
+        os.path.join(GRAPHMB_BINNER_OUT, "_best_contig2bin.tsv"),
+        os.path.join(GRAPHMB_BINNER_OUT, "_best_embs.pickle"),
+        os.path.join(GRAPHMB_BINNER_OUT, "_bins/") 
+    threads:
+        NUM_CORES
+    conda:
+        "ml"
+    shell:
+        "graphmb --features {input.features} --numcores {threads} --assembly_name {input.fasta} --graph_file {input.graph} --depth {input.jgi} --outdir {GRAPHMB_BINNER_OUT} --minbin {BIN_MINLEN} --mincontig {CONTIG_MINLEN}"
+
+rule checkm:
+    input:
+        vamb_bins = os.path.join(VAMB_BINNER_OUT, "bins/"),
+        graphmb_bins = os.path.join(GRAPHMB_BINNER_OUT, "_bins/")
+    output:
+        os.path.join(CHECKM_VAMB_OUT, "storage/bin_stats_ext.tsv"),
+        os.path.join(CHECKM_GRAPHMB_OUT, "storage/bin_stats_ext.tsv")
+    threads:
+        NUM_CORES
+    conda:
+        "checkm"
+    shell:
+        "checkm lineage_wf --reduced_tree -x fa --threads {threads} --pplacer_threads {threads} {input.graphmb_bins} {CHECKM_GRAPHMB_OUT} && checkm lineage_wf --reduced_tree -x fna --threads {threads} --pplacer_threads {threads} {input.vamb_bins} {CHECKM_VAMB_OUT}"
+
+
+rule tSNE:
+    input:
+        vamb_embeddings = expand("{VAMB_BINNER}/embs{aggregation}.tsv", VAMB_BINNER=[VAMB_BINNER_OUT], aggregation=["", "_aggregated"]),
+        graphmb_embeddings = os.path.join(GRAPHMB_BINNER_OUT, "_best_embs.pickle")
+    output:
+        reduced_embeddings_output
+    conda:
+        "ml"
+    shell:
+        "python3 ~/tools/GNN_plus_HiC/reduce_embeddings.py -i {input} -d 3"
