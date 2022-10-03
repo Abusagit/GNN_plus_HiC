@@ -54,30 +54,28 @@ rule vamb:
         fasta = FASTA_ASSEMBLY,
         jgi = CONTIG_DEPTHS,
         contact_map = CONTACT_MAP
-
     output:
         os.path.join(VAMB_BINNER_OUT, "clusters.tsv"),
         os.path.join(VAMB_BINNER_OUT, "embs.tsv"),
-        os.path.join(VAMB_BINNER_OUT, "embs_aggregated.tsv"),
-        os.path.join(VAMB_BINNER_OUT, "bins/")
+        dir = directory(os.path.join(VAMB_BINNER_OUT, "bins"))
     threads: 
         NUM_CORES
     conda:
         "ml"
     shell:
         "rm -rf {VAMB_BINNER_OUT};" # crashes with error if this line is not printed (mb because outdir is being created somewhere before implicitly)
-        "vamb -p {threads} --outdir {VAMB_BINNER_OUT} -m {CONTIG_MINLEN} --minfasta {BIN_MINLEN} -k {AGGREGATION_K_NEIGHBORS} --aggregation_runs {AGGREGATION_NUM_ITERATIONS} --option {AGGREGATION_MODE} --jgi {input.jgi} --fasta {input.fasta} --contact_map {input.contact_map}"
+        "vamb -p {threads} --outdir {VAMB_BINNER_OUT} -m {CONTIG_MINLEN} --minfasta {BIN_MINLEN} -k {AGGREGATION_K_NEIGHBORS} --aggregation_runs {AGGREGATION_NUM_ITERATIONS} --option {AGGREGATION_MODE} --jgi {input.jgi} --fasta {input.fasta} --contact_map {input.contact_map};"
 
 rule graphmb:
     input:
-        features = os.path.join(VAMB_BINNER_OUT, "embs_aggregated.tsv"),
+        features = os.path.join(VAMB_BINNER_OUT, "embs.tsv"),
         graph = ASSEMBLY_GRAPH,
         jgi = CONTIG_DEPTHS,
         fasta = FASTA_ASSEMBLY
     output:
         os.path.join(GRAPHMB_BINNER_OUT, "_best_contig2bin.tsv"),
         os.path.join(GRAPHMB_BINNER_OUT, "_best_embs.pickle"),
-        os.path.join(GRAPHMB_BINNER_OUT, "_bins/") 
+        dir = directory(os.path.join(GRAPHMB_BINNER_OUT, "_bins/"))
     threads:
         NUM_CORES
     conda:
@@ -87,8 +85,8 @@ rule graphmb:
 
 rule checkm:
     input:
-        vamb_bins = os.path.join(VAMB_BINNER_OUT, "bins/"),
-        graphmb_bins = os.path.join(GRAPHMB_BINNER_OUT, "_bins/")
+        vamb_bins = rules.vamb.output.dir,
+        graphmb_bins = rules.graphmb.output.dir
     output:
         os.path.join(CHECKM_VAMB_OUT, "storage/bin_stats_ext.tsv"),
         os.path.join(CHECKM_GRAPHMB_OUT, "storage/bin_stats_ext.tsv")
@@ -102,7 +100,7 @@ rule checkm:
 
 rule tSNE:
     input:
-        vamb_embeddings = expand("{VAMB_BINNER}/embs{aggregation}.tsv", VAMB_BINNER=[VAMB_BINNER_OUT], aggregation=["", "_aggregated"]),
+        vamb_embeddings = os.path.join(VAMB_BINNER_OUT, "embs.tsv"),
         graphmb_embeddings = os.path.join(GRAPHMB_BINNER_OUT, "_best_embs.pickle")
     output:
         reduced_embeddings_output
