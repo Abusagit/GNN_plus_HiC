@@ -6,6 +6,10 @@
     "cores": "32",
     "checkm_output_root": false,
     "binner_output_root": false,
+    "aggregation_mode": "full",
     "aggregation_neighbors": "30",
-    "aggregation_iterations": "1"
+    "aggregation_iterations": "1",
+    "contig_minlen": "2000",
+    "bin_minlen": "500000",
+    "postfix_name": ""
 }
