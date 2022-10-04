@@ -29,8 +29,7 @@ else:
 
 vamb_outdir += binner_postfix
 
-reduced_embeddings_output = os.path.join(vamb_outdir + f"{binner_output_root}_reduced.tsv")
-
+reduced_embeddings_output = os.path.join(binner_output_root, vamb_outdir, vamb_outdir + "_reduced.tsv")
 
 graphmb_outdir = "graphmb_" + vamb_outdir
 
@@ -46,17 +45,18 @@ CHECKM_GRAPHMB_OUT = os.path.join(checkm_output_root, graphmb_outdir)
 
 rule all:
     input:
-        os.path.join(CHECKM_VAMB_OUT, "storage/bin_stats_ext.tsv"),
-        os.path.join(CHECKM_VAMB_OUT, "storage/bin_stats_ext.tsv"),
-        reduced_embeddings_output
+        checkm_graphmb = os.path.join(CHECKM_GRAPHMB_OUT, "storage/bin_stats_ext.tsv"),
+        checkm_vamb = os.path.join(CHECKM_VAMB_OUT, "storage/bin_stats_ext.tsv"),
+        reduced_embs = reduced_embeddings_output
+
 rule vamb:
     input:
         fasta = FASTA_ASSEMBLY,
         jgi = CONTIG_DEPTHS,
         contact_map = CONTACT_MAP
     output:
-        os.path.join(VAMB_BINNER_OUT, "clusters.tsv"),
-        os.path.join(VAMB_BINNER_OUT, "embs.tsv"),
+        clusters = os.path.join(VAMB_BINNER_OUT, "clusters.tsv"),
+        embeddings = os.path.join(VAMB_BINNER_OUT, "embs.tsv"),
         dir = directory(os.path.join(VAMB_BINNER_OUT, "bins"))
     threads: 
         NUM_CORES
@@ -68,13 +68,13 @@ rule vamb:
 
 rule graphmb:
     input:
-        features = os.path.join(VAMB_BINNER_OUT, "embs.tsv"),
+        features = rules.vamb.output.embeddings,
         graph = ASSEMBLY_GRAPH,
         jgi = CONTIG_DEPTHS,
         fasta = FASTA_ASSEMBLY
     output:
-        os.path.join(GRAPHMB_BINNER_OUT, "_best_contig2bin.tsv"),
-        os.path.join(GRAPHMB_BINNER_OUT, "_best_embs.pickle"),
+        clusters = os.path.join(GRAPHMB_BINNER_OUT, "_best_contig2bin.tsv"),
+        embeddings = os.path.join(GRAPHMB_BINNER_OUT, "_best_embs.pickle"),
         dir = directory(os.path.join(GRAPHMB_BINNER_OUT, "_bins/"))
     threads:
         NUM_CORES
@@ -88,22 +88,23 @@ rule checkm:
         vamb_bins = rules.vamb.output.dir,
         graphmb_bins = rules.graphmb.output.dir
     output:
-        os.path.join(CHECKM_VAMB_OUT, "storage/bin_stats_ext.tsv"),
-        os.path.join(CHECKM_GRAPHMB_OUT, "storage/bin_stats_ext.tsv")
+        rules.all.input.checkm_graphmb,
+        rules.all.input.checkm_vamb
     threads:
         NUM_CORES
     conda:
         "checkm"
     shell:
-        "checkm lineage_wf --reduced_tree -x fa --threads {threads} --pplacer_threads {threads} {input.graphmb_bins} {CHECKM_GRAPHMB_OUT} && checkm lineage_wf --reduced_tree -x fna --threads {threads} --pplacer_threads {threads} {input.vamb_bins} {CHECKM_VAMB_OUT}"
+        "checkm lineage_wf --reduced_tree -x fa --threads {threads} --pplacer_threads {threads} {input.graphmb_bins} {CHECKM_GRAPHMB_OUT} && checkm lineage_wf --reduced_tree -x fna --threads {threads} --pplacer_threads {threads} {input.vamb_bins} {CHECKM_VAMB_OUT};"
+        "if [ -d {input} ]; then rm -Rf {input}; fi"
 
 
 rule tSNE:
     input:
-        vamb_embeddings = os.path.join(VAMB_BINNER_OUT, "embs.tsv"),
-        graphmb_embeddings = os.path.join(GRAPHMB_BINNER_OUT, "_best_embs.pickle")
+        rules.vamb.output.embeddings,
+        rules.graphmb.output.embeddings
     output:
-        reduced_embeddings_output
+        rules.all.input.reduced_embs
     conda:
         "ml"
     shell:
