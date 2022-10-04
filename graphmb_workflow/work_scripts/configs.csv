@@ -1,0 +1,10 @@
+;Spades contact map;hicbin contact map 15 k;hicbin contact map 15 k 10 iters;Hicbin contact map 15 k 5 iters during;bin3c contact map;bin3c;bin3c 2;Hybrid
+fasta;inputs/assembly.fasta;inputs/assembly.fasta;inputs/assembly.fasta;inputs/assembly.fasta;inputs/assembly.fasta;inputs/assembly.fasta;inputs/assembly.fasta;inputs/assembly.fasta
+assembly_graph;for_graphmb/assembly_graph.gfa;inputs/graphmb_hicbin_norm.gfa;inputs/graphmb_hicbin_norm.gfa;inputs/graphmb_hicbin_norm.gfa;graphmb_w_bin3c_cm/assembly_graph.gfa;graphmb_w_bin3c_cm/assembly_graph.gfa;graphmb_w_bin3c_cm/assembly_graph.gfa;inputs/graphmb_hicbin_norm.gfa
+depths_file;inputs/assembly_depth.txt;inputs/assembly_depth.txt;inputs/assembly_depth.txt;inputs/assembly_depth.txt;inputs/assembly_depth.txt;inputs/assembly_depth.txt;inputs/assembly_depth.txt;inputs/assembly_depth.txt
+contact_map;inputs/contact_map.tsv;outputs/hicbin_threshold_005_kraken_taxonomy/contact_map_normalised.tsv;outputs/hicbin_threshold_005_kraken_taxonomy/contact_map_normalised.tsv;outputs/hicbin_threshold_005_kraken_taxonomy/contact_map_normalised.tsv;bin3c_contact_map.tsv;bin3c_contact_map.tsv;bin3c_contact_map.tsv;bin3c_contact_map.tsv
+aggregation_mode;during;full;after;during;full;after;during;full
+aggregation_neighbors;15;15;15;15;30;30;30;30
+aggregation_iterations;5;1;10;5;1;15;5;1
+postfix_name;;hicbin_cm;hicbin_cm;hicbin_cm;bin3c_cm;bin3c_cm;bin3c_cm;bin_cm_hicbin_graph
+output;config_spades_15_5.json;config_hicbin_15_1_full.json;config_hicbin_15_10_after.json;config_hicbin_15_5_during.json;config_bin3c_30_1_full.json;config_bin3c_30_15_after;config_bin3c_30_5_during.json;config_bin3c_cm_hicbin_graph_30_1.json
