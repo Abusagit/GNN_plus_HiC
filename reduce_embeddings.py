@@ -64,7 +64,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser("Mapping embeddings to reduced vector space")
     parser.add_argument("-i", "--input", nargs="+", help="embeddings in .tsv format")
     parser.add_argument("-o", "--outdir", default=None)
-    parser.add_argument("-d", "--ndimensions", default=3)
+    parser.add_argument("-d", "--ndimensions", default=3, type=int)
     
     args = parser.parse_args()
     
