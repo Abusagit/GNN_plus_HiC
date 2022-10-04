@@ -32,19 +32,24 @@ def get_parser():
     return parser, technical_args
 
 
+def create_json(outfile, arguments, technical_args):
+    config_arguments = dict((arg, arguments[arg]) for arg in arguments if arg not in technical_args)
+    
+    if '/' in outfile:
+        directory = '/'.join(outfile.split('/')[:-1])
+        Path(directory).mkdir(exist_ok=True, parents=True)
+    with open(outfile, "w") as h:
+        json.dump(config_arguments, h, indent=4, sort_keys=True)
 
 def main():
     
     parser, technical_args = get_parser()
     args = vars(parser.parse_args())
     
-    config_arguments = dict((arg, args[arg]) for arg in args if arg not in technical_args)
-    
-    if '/' in args["output"]:
-        directory = '/'.join(args["output"].split('/')[:-1])
-        Path(directory).mkdir(exist_ok=True, parents=True)
-    with open(args["output"], "w") as h:
-        json.dump(config_arguments, h, indent=4, sort_keys=True)
+
+        
+    create_json(args["output"], args, technical_args)
+
         
     
 if __name__ == "__main__":
