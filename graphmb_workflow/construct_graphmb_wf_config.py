@@ -45,7 +45,7 @@ def main():
         Path(directory).mkdir(exist_ok=True, parents=True)
     with open(args["output"], "w") as h:
         json.dump(config_arguments, h, indent=4, sort_keys=True)
-    
+        
     
 if __name__ == "__main__":
     main()
