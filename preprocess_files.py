@@ -54,11 +54,10 @@ def check_header(file):
                 )):
             return False
         return True
-
-
-if __name__ == '__main__':
-
-    # Parse arguments:
+    
+    
+def get_parser():
+     # Parse arguments:
     parser = argparse.ArgumentParser(description="Preprocessing Hi-C contact map for GraphMB or DMoN, \
     abundances for GraphMB, labels for AMBER")
 
@@ -108,15 +107,21 @@ if __name__ == '__main__':
     parser.add_argument("--header", type=str, help="Path for header file for AMBER tool")
     parser.add_argument("--draw", action="store_true", help="Option for drowing contigs lengths distribution")
     parser.add_argument("--no_fasta", action="store_true")
+    return parser
+
+
+if __name__ == '__main__':
+
+    parser = get_parser()
 
     args = parser.parse_args()
-
     # Initializing logger
+    root = initialize_logger()
+
 
 
 
     # Initiate output writing:
-    
     warning = ""
     if os.path.isdir(args.outdir) and not args.force:
         raise FileExistsError(
@@ -127,7 +132,8 @@ if __name__ == '__main__':
         warning = f"Force overwriting files with same names in the directory {args.outdir}"
 
     Path(args.outdir).mkdir(parents=True, exist_ok=True)
-    root = initialize_logger()
+    
+    
     if warning:
         root.warning(warning)
     root.info(f"Reading contact map from {args.contact_map}")
