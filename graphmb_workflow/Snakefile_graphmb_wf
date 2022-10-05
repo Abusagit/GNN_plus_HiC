@@ -8,8 +8,8 @@ CONTIG_DEPTHS = config.get("depths_file")
 CONTACT_MAP = config.get("contact_map")
 NUM_CORES = int(config.get("cores", "32"))
 
-checkm_output_root = config.get("checkm_output_root")
-binner_output_root = config.get("binner_output_root")
+checkm_output_root = config.get("checkm_output_root", "checm_results/")
+binner_output_root = config.get("binner_output_root", "outputs/")
 
 AGGREGATION_K_NEIGHBORS = config.get("aggregation_neighbors")
 AGGREGATION_NUM_ITERATIONS = config.get("aggregation_iterations")
@@ -20,7 +20,8 @@ BIN_MINLEN = config.get("bin_minlen", "500000")
 
 AGGREGATION_MODE = AGGREGATION_MODE or "None"
 
-binner_postfix = config.get("postfix_name", '')
+binner_postfix = config.get("postfix_name", "")
+binner_postfix = binner_postfix or ""
 
 if AGGREGATION_MODE != "None":
     vamb_outdir = "vamb_aggregated_{}_neighbors_{}_iters_{}".format(AGGREGATION_K_NEIGHBORS, AGGREGATION_NUM_ITERATIONS, AGGREGATION_MODE)
@@ -29,8 +30,8 @@ else:
 
 vamb_outdir += binner_postfix
 
-reduced_embeddings_output_1 = vamb_outdir + "_reduced.tsv"
-reduced_embeddings_output_2 = "graphmb_" + vamb_outdir + "_reduced.tsv"
+reduced_embeddings_output_1 = vamb_outdir + "_embs_reduced.tsv"
+reduced_embeddings_output_2 = "graphmb_" + vamb_outdir + "__best_embs_reduced.tsv"
 
 
 graphmb_outdir = "graphmb_" + vamb_outdir
