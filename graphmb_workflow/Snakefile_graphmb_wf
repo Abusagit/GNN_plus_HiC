@@ -6,7 +6,7 @@ FASTA_ASSEMBLY = config.get("fasta")
 ASSEMBLY_GRAPH = config.get("assembly_graph")
 CONTIG_DEPTHS = config.get("depths_file")
 CONTACT_MAP = config.get("contact_map")
-NUM_CORES = int(config.get("cores"))
+NUM_CORES = int(config.get("cores", "32"))
 
 checkm_output_root = config.get("checkm_output_root")
 binner_output_root = config.get("binner_output_root")
@@ -15,8 +15,8 @@ AGGREGATION_K_NEIGHBORS = config.get("aggregation_neighbors")
 AGGREGATION_NUM_ITERATIONS = config.get("aggregation_iterations")
 AGGREGATION_MODE = config.get("aggregation_mode")
 
-CONTIG_MINLEN = config.get("contig_minlen")
-BIN_MINLEN = config.get("bin_minlen")
+CONTIG_MINLEN = config.get("contig_minlen", "2000")
+BIN_MINLEN = config.get("bin_minlen", "500000")
 
 AGGREGATION_MODE = AGGREGATION_MODE or "None"
 
@@ -29,7 +29,9 @@ else:
 
 vamb_outdir += binner_postfix
 
-reduced_embeddings_output = binner_output_root + "_" + vamb_outdir + "_reduced.tsv"
+reduced_embeddings_output_1 = vamb_outdir + "_reduced.tsv"
+reduced_embeddings_output_2 = "graphmb_" + vamb_outdir + "_reduced.tsv"
+
 
 graphmb_outdir = "graphmb_" + vamb_outdir
 
@@ -41,13 +43,15 @@ CHECKM_VAMB_OUT = os.path.join(checkm_output_root, vamb_outdir)
 CHECKM_GRAPHMB_OUT = os.path.join(checkm_output_root, graphmb_outdir)
 
 
-
+print(binner_output_root + '_' + reduced_embeddings_output_1)
+print(binner_output_root + '_' + reduced_embeddings_output_2)
 
 rule all:
     input:
         checkm_graphmb = os.path.join(CHECKM_GRAPHMB_OUT, "storage/bin_stats_ext.tsv"),
         checkm_vamb = os.path.join(CHECKM_VAMB_OUT, "storage/bin_stats_ext.tsv"),
-        reduced_embs = reduced_embeddings_output
+        reduced_embs_vamb = binner_output_root + '_' + reduced_embeddings_output_1,
+        reduced_embs_graphmb = binner_output_root + '_' + reduced_embeddings_output_2
 
 rule vamb:
     input:
@@ -104,8 +108,11 @@ rule tSNE:
         rules.vamb.output.embeddings,
         rules.graphmb.output.embeddings
     output:
-        rules.all.input.reduced_embs
+        rules.all.input.reduced_embs_vamb,
+        rules.all.input.reduced_embs_graphmb
+    threads:
+        NUM_CORES
     conda:
         "ml"
     shell:
-        "python3 ~/tools/GNN_plus_HiC/reduce_embeddings.py -i {input} -d 3"
+        "python3 ~/tools/GNN_plus_HiC/reduce_embeddings.py -i {input} -d 3 -p {threads}"
