@@ -49,8 +49,7 @@ print(binner_output_root + '_' + reduced_embeddings_output_2)
 
 rule all:
     input:
-        checkm_graphmb = os.path.join(CHECKM_GRAPHMB_OUT, "storage/bin_stats_ext.tsv"),
-        checkm_vamb = os.path.join(CHECKM_VAMB_OUT, "storage/bin_stats_ext.tsv"),
+        dirs_checkm = expand("{binner}/storage/bin_stats_ext.tsv", binner=[CHECKM_GRAPHMB_OUT, CHECKM_VAMB_OUT]),
         reduced_embs_vamb = binner_output_root + '_' + reduced_embeddings_output_1,
         reduced_embs_graphmb = binner_output_root + '_' + reduced_embeddings_output_2
 
@@ -93,16 +92,16 @@ rule checkm:
         vamb_bins = rules.vamb.output.dir,
         graphmb_bins = rules.graphmb.output.dir
     output:
-        rules.all.input.checkm_graphmb,
-        rules.all.input.checkm_vamb
+        rules.all.input.dirs_checkm
     threads:
         NUM_CORES
     conda:
         "checkm"
     shell:
-        "checkm lineage_wf --reduced_tree -x fa --threads {threads} --pplacer_threads {threads} {input.graphmb_bins} {CHECKM_GRAPHMB_OUT} && checkm lineage_wf --reduced_tree -x fna --threads {threads} --pplacer_threads {threads} {input.vamb_bins} {CHECKM_VAMB_OUT};"
-        "rm -r {input}"
-
+        "source ~/miniconda3/etc/profile.d/conda.sh;"
+        "conda activate checkm;"
+        "checkm lineage_wf --reduced_tree -x fa --threads {threads} --pplacer_threads {threads} {input.graphmb_bins} {CHECKM_GRAPHMB_OUT};"
+        "checkm lineage_wf --reduced_tree -x fna --threads {threads} --pplacer_threads {threads} {input.vamb_bins} {CHECKM_VAMB_OUT}"
 
 rule tSNE:
     input:
