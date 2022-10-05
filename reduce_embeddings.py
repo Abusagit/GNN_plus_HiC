@@ -6,13 +6,7 @@ New_dim - # of mapped dimensions
 """
 import os
 
-DEFAULT_PROCESSES = min(os.cpu_count(), 8)
-os.environ['OPENBLAS_NUM_THREADS'] = str(DEFAULT_PROCESSES)
-# These MUST be set before importing numpy
-# I know this is a shitty hack, see https://github.com/numpy/numpy/issues/11826
-os.environ["MKL_NUM_THREADS"] = str(DEFAULT_PROCESSES)
-os.environ["NUMEXPR_NUM_THREADS"] = str(DEFAULT_PROCESSES)
-os.environ["OMP_NUM_THREADS"] = str(DEFAULT_PROCESSES)
+
 
 
 import argparse
@@ -54,7 +48,7 @@ def get_reduced_embeddings(*embs_names, ndims=2) -> pd.DataFrame:
     
     for e_name in tqdm(embs_names, desc=f"Reducing dimensions to {ndims} for every given embedding file..."):
         e = handle_filename(e_name)
-        tsne = TSNE(n_components=ndims, verbose=5)
+        tsne = TSNE(n_components=ndims, verbose=5, n_iter=250)
         e_reduced = tsne.fit_transform(e.values)
         
         yield pd.DataFrame(e_reduced, columns=columns, index=e.index)
@@ -65,10 +59,17 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--input", nargs="+", help="embeddings in .tsv format")
     parser.add_argument("-o", "--outdir", default=None)
     parser.add_argument("-d", "--ndimensions", default=3, type=int)
+    parser.add_argument("-p", "--cores", default=32)
     
     args = parser.parse_args()
     
-        
+    DEFAULT_PROCESSES = str(min(os.cpu_count(), int(args.cores)))
+    # I know this is a shitty hack, see https://github.com/numpy/numpy/issues/11826
+    os.environ['OPENBLAS_NUM_THREADS'] = DEFAULT_PROCESSES
+    os.environ["MKL_NUM_THREADS"] = DEFAULT_PROCESSES
+    os.environ["NUMEXPR_NUM_THREADS"] = DEFAULT_PROCESSES
+    os.environ["OMP_NUM_THREADS"] = DEFAULT_PROCESSES
+    
     if args.outdir:
         _dir = Path(args.outdir)
     else:
