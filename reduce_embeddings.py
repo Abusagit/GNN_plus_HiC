@@ -48,7 +48,7 @@ def get_reduced_embeddings(*embs_names, ndims=2) -> pd.DataFrame:
     
     for e_name in tqdm(embs_names, desc=f"Reducing dimensions to {ndims} for every given embedding file..."):
         e = handle_filename(e_name)
-        tsne = TSNE(n_components=ndims, verbose=5, n_iter=250)
+        tsne = TSNE(n_components=ndims, verbose=5)
         e_reduced = tsne.fit_transform(e.values)
         
         yield pd.DataFrame(e_reduced, columns=columns, index=e.index)
