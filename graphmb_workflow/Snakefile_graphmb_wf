@@ -8,7 +8,7 @@ CONTIG_DEPTHS = config.get("depths_file")
 CONTACT_MAP = config.get("contact_map")
 NUM_CORES = int(config.get("cores", "32"))
 
-checkm_output_root = config.get("checkm_output_root", "checm_results")
+checkm_output_root = config.get("checkm_output_root", "checkm_results")
 binner_output_root = config.get("binner_output_root", "outputs")
 
 AGGREGATION_K_NEIGHBORS = config.get("aggregation_neighbors")
@@ -101,8 +101,8 @@ rule checkm:
     shell:
         "source ~/miniconda3/etc/profile.d/conda.sh;"
         "conda activate checkm;"
-        "checkm lineage_wf --reduced_tree -x fa --threads {threads} --pplacer_threads {threads} {input.graphmb_bins} {CHECKM_GRAPHMB_OUT};"
-        "checkm lineage_wf --reduced_tree -x fna --threads {threads} --pplacer_threads {threads} {input.vamb_bins} {CHECKM_VAMB_OUT}"
+        "checkm lineage_wf -x fa --threads {threads} --pplacer_threads {threads} {input.graphmb_bins} {CHECKM_GRAPHMB_OUT};"
+        "checkm lineage_wf -x fna --threads {threads} --pplacer_threads {threads} {input.vamb_bins} {CHECKM_VAMB_OUT}"
 
 rule tSNE:
     input:
