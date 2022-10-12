@@ -10,7 +10,7 @@ def get_parser():
     parser.add_argument("-f", "--fasta")
     parser.add_argument("-c", "--clusters")
     parser.add_argument("--outdir", default=Path(Path.cwd(), "bins"), type=Path)
-    parser.add_argument("--minbin", default=500_000)
+    parser.add_argument("--minbin", default=500_000, type=int)
     
     return parser
 
