@@ -26,6 +26,7 @@ def get_parser():
     config_options.add_argument("-i", "--aggregation_iterations", help="Iterations number for single iteration step", default="1")
     config_options.add_argument("-m", "--contig_minlen", help="Threshold length for contig", default="2000")
     config_options.add_argument("-b", "--bin_minlen", help="Threshold length for bin in the output dir", default="500000")
+    config_options.add_argument("-s", "--short_threshold", help="Threshold for contig length to be considered in embeddings aggregation", default="100000")
     config_options.add_argument("--postfix_name", default='')
         
     technical_args = {"output", "o"}

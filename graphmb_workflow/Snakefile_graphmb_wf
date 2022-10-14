@@ -17,6 +17,7 @@ AGGREGATION_MODE = config.get("aggregation_mode")
 
 CONTIG_MINLEN = config.get("contig_minlen", "2000")
 BIN_MINLEN = config.get("bin_minlen", "500000")
+LENGTH_THRESHOLD = config.get("short_threshold", "100000")
 
 AGGREGATION_MODE = AGGREGATION_MODE or "None"
 
@@ -24,7 +25,7 @@ binner_postfix = config.get("postfix_name", "")
 binner_postfix = f"_{binner_postfix}" if binner_postfix else ''
 
 if AGGREGATION_MODE != "None":
-    vamb_outdir = "vamb_aggregated_{}_neighbors_{}_iters_{}".format(AGGREGATION_K_NEIGHBORS, AGGREGATION_NUM_ITERATIONS, AGGREGATION_MODE)
+    vamb_outdir = "vamb_aggregated_{}_neighbors_{}_iters_{}_short_threshold_{}".format(AGGREGATION_K_NEIGHBORS, AGGREGATION_NUM_ITERATIONS, AGGREGATION_MODE, LENGTH_THRESHOLD)
 else:
     vamb_outdir = "vamb"
 
@@ -68,8 +69,8 @@ rule vamb:
     conda:
         "ml"
     shell:
-        "rm -rf {VAMB_BINNER_OUT};" # crashes with error if this line is not printed (mb because outdir is being created somewhere before implicitly)
-        "vamb -p {threads} --outdir {VAMB_BINNER_OUT} -m {CONTIG_MINLEN} --minfasta {BIN_MINLEN} -k {AGGREGATION_K_NEIGHBORS} --aggregation_runs {AGGREGATION_NUM_ITERATIONS} --option {AGGREGATION_MODE} --jgi {input.jgi} --fasta {input.fasta} --contact_map {input.contact_map};"
+        "rm -r {VAMB_BINNER_OUT};" # crashes with error if this line is not printed (mb because outdir is being created somewhere before implicitly)
+        "vamb -p {threads} --outdir {VAMB_BINNER_OUT} -m {CONTIG_MINLEN} --minfasta {BIN_MINLEN} -k {AGGREGATION_K_NEIGHBORS} --aggregation_runs {AGGREGATION_NUM_ITERATIONS} --short {LENGTH_THRESHOLD} --option {AGGREGATION_MODE} --jgi {input.jgi} --fasta {input.fasta} --contact_map {input.contact_map};"
 
 rule graphmb:
     input:
