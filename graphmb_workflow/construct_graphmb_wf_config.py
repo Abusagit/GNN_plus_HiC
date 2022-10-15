@@ -19,8 +19,8 @@ def get_parser():
     config_options.add_argument("-c", "--contact_map", help="location of contact map in .tsv format for embeddings aggregation")
     
     config_options.add_argument("-p", "--cores", help="# of processors being used", default="32")
-    config_options.add_argument("--binner_output_root", help="Root for Binners (VAMB,  GraphMB) output dir", default="outputs/")
-    config_options.add_argument("--checkm_output_root", help="Root for CHECKM output dir", default="checkm_reults/")
+    config_options.add_argument("--binner_output_root", help="Root for Binners (VAMB,  GraphMB) output dir", default="outputs")
+    config_options.add_argument("--checkm_output_root", help="Root for CHECKM output dir", default="checkm_reults")
     config_options.add_argument("--aggregation_mode", help="Aggregation mode: full/during/after/none", default="full")
     config_options.add_argument("-k", "--aggregation_neighbors", help="k nearest neighbors for aggregation", default="30")
     config_options.add_argument("-i", "--aggregation_iterations", help="Iterations number for single iteration step", default="1")
