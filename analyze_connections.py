@@ -152,7 +152,7 @@ if __name__ == '__main__':
         while unvisited_connections:
             c_1, c_2 = unvisited_connections.pop()
             unvisited_connections.discard((c_2, c_1))
-
+    
             cluster_1 = contig2bin.get(c_1)
             cluster_2 = contig2bin.get(c_2)
 
