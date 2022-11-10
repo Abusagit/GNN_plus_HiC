@@ -16,6 +16,7 @@ def get_parser():
 
 
 def linecount(filename):
+    print(f"Counting lines from {filename}")
     with open(filename, "rb") as file:
         bufgen = takewhile(lambda x: x, (file.raw.read(1024*1024) for _ in repeat(None)))
     
@@ -32,7 +33,7 @@ def read_fasta(file):
         _seq = []
         
         lengths = dict()
-        for line in tqdm(fasta_read, total=lines-1):
+        for line in tqdm(fasta_read, total=lines-1, desc=f"reading {file}..."):
             if line[0] == '>':
                 sequence = ''.join(_seq)
 
@@ -58,7 +59,7 @@ def write_bins(fasta_dict, clusters_dict, contiglen, minbin_len, outdir):
     outdir.mkdir(parents=True, exist_ok=False)
     
     
-    for bin_, contigs in tqdm(clusters_dict.items(), total=len(clusters_dict)):
+    for bin_, contigs in tqdm(clusters_dict.items(), total=len(clusters_dict), desc=f"Writing bins to {str(outdir)}"):
         if sum(contiglen[c] for c in contigs) < minbin_len:
             continue
         
